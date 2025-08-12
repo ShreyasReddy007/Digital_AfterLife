@@ -1,0 +1,21 @@
+{
+  "name": "daf-server",
+  "version": "0.1.0",
+  "main": "index.js",
+  "license": "MIT",
+  "scripts": {
+    "start": "node index.js",
+    "dev": "nodemon index.js"
+  },
+  "dependencies": {
+    "axios": "^1.4.0",
+    "body-parser": "^1.20.2",
+    "cors": "^2.8.5",
+    "dotenv": "^16.3.1",
+    "express": "^4.18.2",
+    "express-fileupload": "^1.4.0"
+  },
+  "devDependencies": {
+    "nodemon": "^3.1.10"
+  }
+}
