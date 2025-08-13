@@ -13,7 +13,7 @@ export default function LoginPage(): JSX.Element {
     // If the user is already authenticated, redirect them away from the login page.
     if (status === 'authenticated') {
       // Redirect to the create vault page, or a dashboard.
-      router.push('/create'); 
+      router.push('/dashboard'); 
     }
   }, [status, router]);
 

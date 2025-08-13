@@ -11,7 +11,7 @@ export default function IndexPage() {
     if (status !== 'loading') {
       if (status === 'authenticated') {
         // If logged in, go to the create vault page
-        router.replace('/create');
+        router.replace('/dashboard');
       } else {
         // If not logged in, go to the login page
         router.replace('/login');
