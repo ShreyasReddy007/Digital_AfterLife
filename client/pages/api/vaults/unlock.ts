@@ -2,6 +2,8 @@ import { Pool } from 'pg';
 import type { NextApiRequest, NextApiResponse } from 'next';
 import { getServerSession } from "next-auth/next";
 import { authOptions } from '../auth/[...nextauth]';
+import bcrypt from 'bcrypt';
+import axios from 'axios';
 
 const pool = new Pool({
   connectionString: process.env.DATABASE_URL,
@@ -26,9 +28,9 @@ export default async function handler(
   }
 
   try {
-    // Check if the vault exists for this user
+    // 1. Find the vault and its stored password hash
     const { rows } = await pool.query(
-      'SELECT * FROM vaults WHERE cid = $1 AND "userId" = $2',
+      'SELECT "passwordHash" FROM vaults WHERE cid = $1 AND "userId" = $2',
       [cid, session.user.id]
     );
 
@@ -36,20 +38,21 @@ export default async function handler(
       return res.status(404).json({ error: 'Vault not found or access denied.' });
     }
 
-    // --- MOCK DECRYPTION ---
-    // In a real app, you would fetch encrypted data from Pinata and decrypt it.
-    // For now, we'll use a simple password check.
-    if (password.toLowerCase() !== 'password') { 
-        return res.status(403).json({ error: 'Invalid password.' });
+    const storedHash = rows[0].passwordHash;
+
+    // 2. Compare the provided password with the stored hash
+    const isPasswordCorrect = await bcrypt.compare(password, storedHash);
+
+    if (!isPasswordCorrect) {
+      return res.status(403).json({ error: 'Invalid password.' });
     }
 
-    const unlockedContent = {
-        message: "This content was successfully unlocked from the backend.",
-        retrievedAt: new Date().toISOString(),
-        cid: cid
-    };
-
-    res.status(200).json({ content: unlockedContent });
+    // 3. **KEY CHANGE: If password is correct, fetch the real content from Pinata's IPFS gateway**
+    const pinataGatewayUrl = `https://gateway.pinata.cloud/ipfs/${cid}`;
+    const contentResponse = await axios.get(pinataGatewayUrl);
+    
+    // 4. Return the actual content from the vault
+    res.status(200).json({ content: contentResponse.data });
 
   } catch (error) {
     console.error('Unlock Error:', error);

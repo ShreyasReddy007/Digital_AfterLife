@@ -83,7 +83,7 @@ export default function DashboardPage(): JSX.Element {
     .dashboardContent { max-width: 1200px; margin: 0 auto; animation: fadeIn 0.5s ease-out; }
     .header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 2rem; }
     .title { font-size: 2.25rem; font-weight: 700; margin: 0; }
-    .signOutButton { background: none; border: 1px solid #475569; color: #94a3b8; padding: 0.5rem 1rem; border-radius: 0.5rem; cursor: pointer; transition: all 0.2s; }
+    .signOutButton { background: none; border: 1px solid #475569; color: #eb4808; padding: 0.5rem 1rem; border-radius: 0.5rem; cursor: pointer; transition: all 0.2s; }
     .signOutButton:hover { background-color: #334155; color: white; }
     .navActions { display: flex; gap: 1rem; margin-bottom: 2rem; }
     .navButton { flex-grow: 1; padding: 1rem; background-color: rgba(0,0,0,0.2); border: 1px solid #475569; border-radius: 0.5rem; text-align: center; cursor: pointer; transition: all 0.2s; }
@@ -101,7 +101,7 @@ export default function DashboardPage(): JSX.Element {
     .styledInput:focus { outline: none; box-shadow: 0 0 0 2px #a855f7; }
     .actionButton { width: 100%; padding: 0.75rem 0; background-color: #581c87; color: white; font-weight: 700; border-radius: 0.5rem; border: none; cursor: pointer; }
     .errorMessage { color: #fcd34d; text-align: center; margin-top: 1rem; }
-    .unlockedContent { background: rgba(0,0,0,0.3); padding: 1rem; border-radius: 0.5rem; margin-top: 1.5rem; white-space: pre-wrap; font-family: monospace; }
+    .unlockedContent { background: rgba(0,0,0,0.3); padding: 1rem; border-radius: 0.5rem; margin-top: 1.5rem; white-space: pre-wrap; font-family: monospace;color: #95f00cff; }
   `;
 
   if (status === 'loading') {

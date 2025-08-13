@@ -1,7 +1,5 @@
-// pages/create.tsx
-
 import React, { JSX, useState, useEffect } from 'react';
-import { useSession, signIn } from 'next-auth/react';
+import { useSession } from 'next-auth/react';
 import { useRouter } from 'next/router';
 import axios from 'axios';
 
@@ -16,11 +14,8 @@ export default function CreatePage(): JSX.Element {
   const [error, setError] = useState<string>('');
   const [copied, setCopied] = useState<boolean>(false);
 
-  // --- The handleCreate function is now updated ---
+  // --- This function now has the full, real workflow ---
   const handleCreate = async (): Promise<void> => {
-    // We'll simulate getting a CID for now. In a real app, you'd get this from Pinata.
-    const fakeCid = 'zQm' + Array(43).fill(0).map(() => 'abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789'.charAt(Math.floor(Math.random() * 62))).join('');
-
     if (!message || !password) {
       setError('Please fill in both the message and the password.');
       return;
@@ -32,15 +27,23 @@ export default function CreatePage(): JSX.Element {
     setCopied(false);
 
     try {
-      // **THIS IS THE KEY CHANGE:**
-      // We are now calling our real backend API to save the vault.
-      const response = await axios.post('/api/vaults/create', { cid: fakeCid });
+      // Step 1: Upload the message content to Pinata to get a real CID
+      const pinataResponse = await axios.post('/api/pinata/upload', { 
+        content: { message: message } 
+      });
+      const realCid = pinataResponse.data.cid;
 
-      // Set the CID from the successful API response
-      setCid(response.data.cid);
+      // Step 2: Save the real CID and the hashed password to your database
+      const vaultResponse = await axios.post('/api/vaults/create', { 
+        cid: realCid,
+        password: password
+      });
+
+      // Set the CID from the successful API response to display to the user
+      setCid(vaultResponse.data.cid);
 
     } catch (err: any) {
-      setError(err.response?.data?.error || 'An unknown error occurred.');
+      setError(err.response?.data?.error || 'An unknown error occurred during vault creation.');
     } finally {
       setIsLoading(false);
     }
@@ -51,8 +54,6 @@ export default function CreatePage(): JSX.Element {
       navigator.clipboard.writeText(cid).then(() => {
         setCopied(true);
         setTimeout(() => setCopied(false), 2000);
-      }).catch(err => {
-        console.error('Failed to copy text: ', err);
       });
     }
   };

@@ -1,9 +1,10 @@
+// pages/api/vaults/create.ts
 import { Pool } from 'pg';
 import type { NextApiRequest, NextApiResponse } from 'next';
 import { getServerSession } from "next-auth/next";
 import { authOptions } from '../auth/[...nextauth]';
+import bcrypt from 'bcrypt';
 
-// Initialize the connection pool to the database
 const pool = new Pool({
   connectionString: process.env.DATABASE_URL,
 });
@@ -12,35 +13,34 @@ export default async function handler(
   req: NextApiRequest,
   res: NextApiResponse
 ) {
-  // 1. Secure the endpoint: Only allow POST requests
   if (req.method !== 'POST') {
-    res.setHeader('Allow', ['POST']);
-    return res.status(405).end(`Method ${req.method} Not Allowed`);
+    return res.status(405).json({ error: 'Method Not Allowed' });
   }
 
-  // 2. Authenticate the user: Check for a valid session
   const session = await getServerSession(req, res, authOptions);
   if (!session || !session.user?.id) {
     return res.status(401).json({ error: 'Unauthorized' });
   }
 
-  // 3. Get the data from the request
-  const { cid } = req.body;
-  if (!cid) {
-    return res.status(400).json({ error: 'CID is required' });
+  // Get the password from the request, along with the cid
+  const { cid, password } = req.body;
+  if (!cid || !password) {
+    return res.status(400).json({ error: 'CID and password are required' });
   }
 
-  // 4. Save to the database
   try {
     const userId = session.user.id;
     
-    // Insert the new CID and the user's ID into the 'vaults' table
+    // Hash the password
+    const saltRounds = 10;
+    const passwordHash = await bcrypt.hash(password, saltRounds);
+
+    // Save the hash, not the plain password
     const newVault = await pool.query(
-      'INSERT INTO vaults (cid, "userId") VALUES ($1, $2) RETURNING *',
-      [cid, userId]
+      'INSERT INTO vaults (cid, "userId", "passwordHash") VALUES ($1, $2, $3) RETURNING id, cid, created_at',
+      [cid, userId, passwordHash]
     );
 
-    // 5. Send a success response
     res.status(201).json(newVault.rows[0]);
 
   } catch (error) {

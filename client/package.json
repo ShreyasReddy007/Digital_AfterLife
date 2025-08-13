@@ -9,8 +9,12 @@
   },
   "dependencies": {
     "@auth/pg-adapter": "^1.10.0",
+    "@pinata/sdk": "^2.1.0",
+    "@types/bcrypt": "^6.0.0",
     "axios": "^1.4.0",
+    "bcrypt": "^6.0.0",
     "dotenv": "^17.2.1",
+    "formidable": "^3.5.4",
     "next": "14.0.0",
     "next-auth": "^4.24.11",
     "pg": "^8.16.3",
