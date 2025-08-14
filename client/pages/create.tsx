@@ -1,12 +1,16 @@
-import React, { JSX, useState, useEffect } from 'react';
+import React, { JSX, useState } from 'react';
 import { useSession } from 'next-auth/react';
 import { useRouter } from 'next/router';
 import axios from 'axios';
 
 export default function CreatePage(): JSX.Element {
-  const { data: session, status } = useSession({ required: true, onUnauthenticated() { router.push('/login') }});
   const router = useRouter();
+  const { data: session, status } = useSession({ 
+    required: true, 
+    onUnauthenticated() { router.push('/login') } 
+  });
   
+  const [name, setName] = useState<string>(''); // New: vault name
   const [message, setMessage] = useState<string>('');
   const [password, setPassword] = useState<string>('');
   const [cid, setCid] = useState<string>('');
@@ -14,10 +18,9 @@ export default function CreatePage(): JSX.Element {
   const [error, setError] = useState<string>('');
   const [copied, setCopied] = useState<boolean>(false);
 
-  // --- This function now has the full, real workflow ---
   const handleCreate = async (): Promise<void> => {
-    if (!message || !password) {
-      setError('Please fill in both the message and the password.');
+    if (!name || !message || !password) {
+      setError('Please fill in all fields.');
       return;
     }
     
@@ -27,19 +30,19 @@ export default function CreatePage(): JSX.Element {
     setCopied(false);
 
     try {
-      // Step 1: Upload the message content to Pinata to get a real CID
+      // Step 1: Upload the message content to Pinata
       const pinataResponse = await axios.post('/api/pinata/upload', { 
-        content: { message: message } 
+        content: { message } 
       });
       const realCid = pinataResponse.data.cid;
 
-      // Step 2: Save the real CID and the hashed password to your database
+      // Step 2: Save CID, name, and password in your DB
       const vaultResponse = await axios.post('/api/vaults/create', { 
         cid: realCid,
-        password: password
+        password,
+        name
       });
 
-      // Set the CID from the successful API response to display to the user
       setCid(vaultResponse.data.cid);
 
     } catch (err: any) {
@@ -59,7 +62,6 @@ export default function CreatePage(): JSX.Element {
   };
 
   const cssStyles = `
-    /* CSS styles remain the same */
     @keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
     @keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
     .pageContainer { min-height: 100vh; width: 100%; background: linear-gradient(to bottom right, #0f172a, #000000, #3b0764); display: flex; align-items: center; justify-content: center; padding: 1rem; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; }
@@ -77,11 +79,16 @@ export default function CreatePage(): JSX.Element {
     .errorMessage { text-align: center; color: #fcd34d; background-color: rgba(127, 29, 29, 0.5); padding: 0.75rem; border-radius: 0.5rem; border: 1px solid #7f1d1d; }
     .resultDisplay { margin-top: 1.5rem; padding: 1rem; background-color: rgba(0, 0, 0, 0.4); border-radius: 0.5rem; text-align: center; color: white; border: 1px solid #334155; animation: fadeIn 0.5s ease-out forwards; }
     .cidContainer { position: relative; background-color: rgba(0, 0, 0, 0.5); padding: 0.75rem; border-radius: 0.5rem; font-family: monospace; font-size: 0.875rem; word-break: break-all; cursor: pointer; border: 1px solid #475569; margin-top: 0.5rem; }
-    .copiedMessage { font-size: 0.75rem; color: #6ee7b7; margin-top: 0.5rem; }
+    .copiedMessage {margin-top: 10px;font-size: 14px;color: #00ff00;text-align: center;text-shadow:0 0 5px #00ff00,0 0 10px #00ff00,0 0 20px #00ff00;}
   `;
 
   if (status === 'loading') {
-    return <div className="pageContainer"><style dangerouslySetInnerHTML={{ __html: cssStyles }} /><p style={{color: 'white'}}>Loading...</p></div>;
+    return (
+      <div className="pageContainer">
+        <style dangerouslySetInnerHTML={{ __html: cssStyles }} />
+        <p style={{color: 'white'}}>Loading...</p>
+      </div>
+    );
   }
   
   return (
@@ -93,8 +100,29 @@ export default function CreatePage(): JSX.Element {
           <p className="subtitle">Welcome, {session?.user?.name}. Encrypt your message.</p>
         </div>
         <div className="form">
-          <textarea className="styledInput" rows={6} placeholder="Enter your secret message..." value={message} onChange={(e) => setMessage(e.target.value)} disabled={isLoading} />
-          <input className="styledInput" type="password" placeholder="Enter vault password" value={password} onChange={(e) => setPassword(e.target.value)} disabled={isLoading} />
+          <input
+            className="styledInput"
+            placeholder="Vault Name"
+            value={name}
+            onChange={(e) => setName(e.target.value)}
+            disabled={isLoading}
+          />
+          <textarea
+            className="styledInput"
+            rows={6}
+            placeholder="Enter your secret message..."
+            value={message}
+            onChange={(e) => setMessage(e.target.value)}
+            disabled={isLoading}
+          />
+          <input
+            className="styledInput"
+            type="password"
+            placeholder="Enter vault password"
+            value={password}
+            onChange={(e) => setPassword(e.target.value)}
+            disabled={isLoading}
+          />
         </div>
         <button className="createButton" onClick={handleCreate} disabled={isLoading}>
           {isLoading ? 'Creating...' : 'Create Vault'}

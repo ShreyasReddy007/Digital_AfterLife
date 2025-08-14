@@ -3,7 +3,6 @@ import type { NextApiRequest, NextApiResponse } from 'next';
 import { getServerSession } from "next-auth/next";
 import { authOptions } from '../auth/[...nextauth]';
 
-// Initialize the connection pool to the database
 const pool = new Pool({
   connectionString: process.env.DATABASE_URL,
 });
@@ -24,9 +23,9 @@ export default async function handler(
     try {
       const userId = session.user.id;
       
-      // Query the database for all vaults belonging to the current user
+      // **KEY CHANGE: Added "name" to the SELECT statement**
       const { rows } = await pool.query(
-        'SELECT id, cid, created_at FROM vaults WHERE "userId" = $1 ORDER BY created_at DESC',
+        'SELECT id, cid, name, created_at FROM vaults WHERE "userId" = $1 ORDER BY created_at DESC',
         [userId]
       );
 

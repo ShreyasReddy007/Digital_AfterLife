@@ -42,17 +42,50 @@ export default async function handler(
 
     // 2. Compare the provided password with the stored hash
     const isPasswordCorrect = await bcrypt.compare(password, storedHash);
-
     if (!isPasswordCorrect) {
       return res.status(403).json({ error: 'Invalid password.' });
     }
 
-    // 3. **KEY CHANGE: If password is correct, fetch the real content from Pinata's IPFS gateway**
+    // 3. Fetch the real content from Pinata's IPFS gateway
     const pinataGatewayUrl = `https://gateway.pinata.cloud/ipfs/${cid}`;
-    const contentResponse = await axios.get(pinataGatewayUrl);
-    
-    // 4. Return the actual content from the vault
-    res.status(200).json({ content: contentResponse.data });
+    const contentResponse = await axios.get(pinataGatewayUrl, {
+      responseType: 'arraybuffer' // so we can detect binary
+    });
+
+    let type: 'json' | 'file' = 'file';
+    let data: any;
+
+    // Try to interpret the content
+    const contentType = contentResponse.headers['content-type'] || '';
+    const buffer = Buffer.from(contentResponse.data);
+
+    if (contentType.includes('application/json')) {
+      type = 'json';
+      data = JSON.parse(buffer.toString('utf8'));
+    } 
+    else if (contentType.startsWith('text/')) {
+      try {
+        data = JSON.parse(buffer.toString('utf8'));
+        type = 'json';
+      } catch {
+        type = 'json';
+        data = buffer.toString('utf8');
+      }
+    } 
+    else if (contentType.startsWith('image/')) {
+      type = 'file';
+      const base64 = buffer.toString('base64');
+      data = `data:${contentType};base64,${base64}`;
+    } 
+    else {
+      // Generic binary file — return as downloadable base64
+      type = 'file';
+      const base64 = buffer.toString('base64');
+      data = `data:application/octet-stream;base64,${base64}`;
+    }
+
+    // 4. Return in the shape the frontend expects
+    res.status(200).json({ type, data });
 
   } catch (error) {
     console.error('Unlock Error:', error);

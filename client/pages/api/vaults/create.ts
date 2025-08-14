@@ -22,10 +22,9 @@ export default async function handler(
     return res.status(401).json({ error: 'Unauthorized' });
   }
 
-  // Get the password from the request, along with the cid
-  const { cid, password } = req.body;
-  if (!cid || !password) {
-    return res.status(400).json({ error: 'CID and password are required' });
+  const { cid, password, name } = req.body;
+  if (!cid || !password || !name) {
+    return res.status(400).json({ error: 'CID, password, and name are required' });
   }
 
   try {
@@ -35,10 +34,10 @@ export default async function handler(
     const saltRounds = 10;
     const passwordHash = await bcrypt.hash(password, saltRounds);
 
-    // Save the hash, not the plain password
+    // Save the CID, user ID, name, and hashed password
     const newVault = await pool.query(
-      'INSERT INTO vaults (cid, "userId", "passwordHash") VALUES ($1, $2, $3) RETURNING id, cid, created_at',
-      [cid, userId, passwordHash]
+      'INSERT INTO vaults (cid, "userId", name, "passwordHash") VALUES ($1, $2, $3, $4) RETURNING id, cid, name, created_at',
+      [cid, userId, name, passwordHash]
     );
 
     res.status(201).json(newVault.rows[0]);
