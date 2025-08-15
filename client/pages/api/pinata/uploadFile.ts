@@ -51,7 +51,7 @@ export default async function handler(
       
       const result = await pinata.pinFileToIPFS(stream, options);
 
-      // (Optional but recommended) Clean up the temporary file
+      // Clean up the temporary file
       fs.unlink(file.filepath, (unlinkErr) => {
         if (unlinkErr) {
           console.error("Error deleting temporary file:", unlinkErr);

@@ -33,6 +33,7 @@ export default function UploadPage(): JSX.Element {
     formData.append('file', file);
     
     try {
+      // Step 1: Upload to Pinata
       const pinataResponse = await axios.post('/api/pinata/uploadFile', formData, {
         headers: {
           'Content-Type': 'multipart/form-data',
@@ -40,7 +41,16 @@ export default function UploadPage(): JSX.Element {
       });
 
       const realCid = pinataResponse.data.cid;
-      const vaultResponse = await axios.post('/api/vaults/create', { cid: realCid, password, name });
+
+      // Step 2: Send file metadata along with vault info to your create API
+      const vaultResponse = await axios.post('/api/vaults/create', { 
+        cid: realCid, 
+        password, 
+        name,
+        originalFilename: file.name, // Send the original filename
+        mimeType: file.type || 'application/octet-stream', // Send the file's MIME type
+      });
+      
       setCid(vaultResponse.data.cid);
       
     } catch (err: any) {

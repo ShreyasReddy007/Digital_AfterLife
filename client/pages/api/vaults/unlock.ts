@@ -1,3 +1,4 @@
+// pages/api/vaults/unlock.ts
 import { Pool } from 'pg';
 import type { NextApiRequest, NextApiResponse } from 'next';
 import { getServerSession } from "next-auth/next";
@@ -28,9 +29,8 @@ export default async function handler(
   }
 
   try {
-    // 1. Find the vault and its stored password hash
     const { rows } = await pool.query(
-      'SELECT "passwordHash" FROM vaults WHERE cid = $1 AND "userId" = $2',
+      'SELECT "passwordHash", "originalFilename", "mimeType" FROM vaults WHERE cid = $1 AND "userId" = $2',
       [cid, session.user.id]
     );
 
@@ -38,54 +38,27 @@ export default async function handler(
       return res.status(404).json({ error: 'Vault not found or access denied.' });
     }
 
-    const storedHash = rows[0].passwordHash;
-
-    // 2. Compare the provided password with the stored hash
-    const isPasswordCorrect = await bcrypt.compare(password, storedHash);
+    const vault = rows[0];
+    const isPasswordCorrect = await bcrypt.compare(password, vault.passwordHash);
     if (!isPasswordCorrect) {
       return res.status(403).json({ error: 'Invalid password.' });
     }
 
-    // 3. Fetch the real content from Pinata's IPFS gateway
     const pinataGatewayUrl = `https://gateway.pinata.cloud/ipfs/${cid}`;
     const contentResponse = await axios.get(pinataGatewayUrl, {
-      responseType: 'arraybuffer' // so we can detect binary
+      responseType: 'arraybuffer'
     });
-
-    let type: 'json' | 'file' = 'file';
-    let data: any;
-
-    // Try to interpret the content
-    const contentType = contentResponse.headers['content-type'] || '';
+    
     const buffer = Buffer.from(contentResponse.data);
+    const mimeType = vault.mimeType || 'application/octet-stream';
+    const fileName = vault.originalFilename || 'vault_content';
+    const dataUri = `data:${mimeType};base64,${buffer.toString('base64')}`;
 
-    if (contentType.includes('application/json')) {
-      type = 'json';
-      data = JSON.parse(buffer.toString('utf8'));
-    } 
-    else if (contentType.startsWith('text/')) {
-      try {
-        data = JSON.parse(buffer.toString('utf8'));
-        type = 'json';
-      } catch {
-        type = 'json';
-        data = buffer.toString('utf8');
-      }
-    } 
-    else if (contentType.startsWith('image/')) {
-      type = 'file';
-      const base64 = buffer.toString('base64');
-      data = `data:${contentType};base64,${base64}`;
-    } 
-    else {
-      // Generic binary file — return as downloadable base64
-      type = 'file';
-      const base64 = buffer.toString('base64');
-      data = `data:application/octet-stream;base64,${base64}`;
-    }
-
-    // 4. Return in the shape the frontend expects
-    res.status(200).json({ type, data });
+    res.status(200).json({
+      type: 'file',
+      data: dataUri,
+      fileName: fileName,
+    });
 
   } catch (error) {
     console.error('Unlock Error:', error);

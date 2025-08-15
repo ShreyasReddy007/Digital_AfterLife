@@ -22,22 +22,21 @@ export default async function handler(
     return res.status(401).json({ error: 'Unauthorized' });
   }
 
-  const { cid, password, name } = req.body;
+  const { cid, password, name, originalFilename, mimeType } = req.body;
+  
   if (!cid || !password || !name) {
     return res.status(400).json({ error: 'CID, password, and name are required' });
   }
 
   try {
     const userId = session.user.id;
-    
-    // Hash the password
     const saltRounds = 10;
     const passwordHash = await bcrypt.hash(password, saltRounds);
 
-    // Save the CID, user ID, name, and hashed password
+    // Ensure Name Match with DataBase.
     const newVault = await pool.query(
-      'INSERT INTO vaults (cid, "userId", name, "passwordHash") VALUES ($1, $2, $3, $4) RETURNING id, cid, name, created_at',
-      [cid, userId, name, passwordHash]
+      'INSERT INTO vaults (cid, "userId", name, "passwordHash", "originalFilename", "mimeType") VALUES ($1, $2, $3, $4, $5, $6) RETURNING id, cid, name, created_at',
+      [cid, userId, name, passwordHash, originalFilename, mimeType]
     );
 
     res.status(201).json(newVault.rows[0]);
