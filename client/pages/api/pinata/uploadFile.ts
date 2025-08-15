@@ -5,7 +5,7 @@ import pinataSDK from '@pinata/sdk';
 import formidable from 'formidable';
 import fs from 'fs';
 
-// You need to tell Next.js not to parse the body, as we need the raw stream
+// formidable can process the raw file stream.
 export const config = {
   api: {
     bodyParser: false,
@@ -17,6 +17,7 @@ export default async function handler(
   res: NextApiResponse
 ) {
   if (req.method !== 'POST') {
+    res.setHeader('Allow', ['POST']);
     return res.status(405).json({ error: 'Method Not Allowed' });
   }
 
@@ -50,11 +51,19 @@ export default async function handler(
       
       const result = await pinata.pinFileToIPFS(stream, options);
 
-      res.status(200).json({ cid: result.IpfsHash });
+      // (Optional but recommended) Clean up the temporary file
+      fs.unlink(file.filepath, (unlinkErr) => {
+        if (unlinkErr) {
+          console.error("Error deleting temporary file:", unlinkErr);
+        }
+      });
+
+      // Send success response
+      return res.status(200).json({ cid: result.IpfsHash });
 
     } catch (error) {
       console.error("Pinata File Upload Error:", error);
-      res.status(500).json({ error: 'Failed to upload file to Pinata.' });
+      return res.status(500).json({ error: 'Failed to upload file to Pinata.' });
     }
   });
 }

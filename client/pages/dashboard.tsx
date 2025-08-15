@@ -13,6 +13,7 @@ interface Vault {
 interface UnlockedContent {
   type: 'json' | 'file';
   data: any;
+  fileName?: string; // Added to support original filenames
 }
 
 export default function DashboardPage(): JSX.Element {
@@ -108,19 +109,24 @@ export default function DashboardPage(): JSX.Element {
       if (unlockedContent.data.startsWith('data:image')) {
         return <img src={unlockedContent.data} alt="Unlocked content" style={{ maxWidth: '100%', borderRadius: '0.5rem' }} />;
       }
-      return <a href={unlockedContent.data} download="vault_content" className="downloadLink">Download File</a>;
+      return <a href={unlockedContent.data} download={unlockedContent.fileName || 'vault_content'} className="downloadLink">Download File</a>;
     }
     return null;
   };
 
   const cssStyles = `
-    .pageContainer { min-height: 100vh; width: 100%; background: linear-gradient(to bottom right, #0f172a, #000000, #3b0764); padding: 2rem 1rem; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; color: white; }
-    .dashboardContent { max-width: 1200px; margin: 0 auto; }
+    .pageContainer { display: flex; flex-direction: column; min-height: 100vh; width: 100%; background: linear-gradient(to bottom right, #0f172a, #000000, #3b0764); padding: 2rem 1rem; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; color: white; }
+    .dashboardContent { max-width: 1200px; margin: 0 auto; width: 100%; }
     .header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 2rem; }
     .title { font-size: 2.25rem; font-weight: 700; margin: 0; }
-    .signOutButton { background: none; border: 1px solid #475569; color: #e14b29ff; padding: 0.5rem 1rem; border-radius: 0.5rem; cursor: pointer; }
+    .signOutButton { background: none; border: 1px solid #475569; color: #e14b29ff; padding: 0.5rem 1rem; border-radius: 0.5rem; cursor: pointer; transition: background-color 0.2s, color 0.2s; }
+    .signOutButton:hover { background-color: #e14b29ff; color: white; }
     .navActions { display: flex; gap: 1rem; margin-bottom: 2rem; }
-    .navButton { flex-grow: 1; padding: 1rem; background-color: rgba(0,0,0,0.2); border: 1px solid #475569; border-radius: 0.5rem; text-align: center; cursor: pointer; }
+    .navButton { flex-grow: 1; padding: 1rem; background-color: rgba(0,0,0,0.2); border: 1px solid #475569; border-radius: 0.5rem; text-align: center; cursor: pointer; transition: background-color 0.2s; }
+    .navButton:hover { background-color: rgba(0,0,0,0.4); }
+    .infoSection { background-color: rgba(255, 255, 255, 0.05); border: 1px solid #334155; border-radius: 0.75rem; padding: 1.5rem 2rem; margin-bottom: 2.5rem; text-align: center; }
+    .infoTitle { font-size: 1.5rem; font-weight: 600; margin-top: 0; margin-bottom: 0.75rem; color: #e2e8f0; }
+    .infoText { font-size: 1rem; color: #94a3b8; line-height: 1.6; max-width: 800px; margin: 0 auto; }
     .vaultsGrid { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 1.5rem; }
     .vaultCard { background-color: rgba(0,0,0,0.3); border: 1px solid #334155; border-radius: 0.5rem; padding: 1.5rem; display: flex; flex-direction: column; justify-content: space-between; }
     .vaultName { font-size: 1.125rem; font-weight: 600; margin: 0; word-break: break-all; }
@@ -136,6 +142,7 @@ export default function DashboardPage(): JSX.Element {
     .errorMessage { color: #fcd34d; text-align: center; margin-top: 1rem; }
     .unlockedContent {background: rgba(0, 0, 0, 0.3);padding: 1rem;border-radius: 0.5rem;margin-top: 1.5rem;white-space: pre-wrap;font-family: monospace;color: #00FF41;text-shadow:0 0 5px #00FF41,0 0 10px #00FF41,0 0 20px #00FF41,0 0 40px #00FF41;}
     .downloadLink { display: block; margin-top: 1.5rem; padding: 1rem; background-color: #581c87; text-align: center; border-radius: 0.5rem; color: white; text-decoration: none; }
+    .footer { text-align: center; padding-top: 2rem; margin-top: auto; color: #64748b; font-size: 0.875rem; }
   `;
 
   if (status === 'loading') {
@@ -155,6 +162,18 @@ export default function DashboardPage(): JSX.Element {
             <div className="navButton" onClick={() => router.push('/create')}>Create New Vault</div>
             <div className="navButton" onClick={() => router.push('/upload')}>Upload File</div>
           </nav>
+
+          <section className="infoSection">
+            <h2 className="infoTitle">Whispers Beyond Time</h2>
+            <ul className="infoPoints">
+              <h3 className="infosubTitle">A Bridge Between Today’s Moments and Tomorrow’s Memories</h3>
+              <p className="infoText">Store heartfelt messages, memories, and documents securely.</p>
+              <p className="infoText">Encrypted to protect your privacy until the right moment arrives.</p>
+              <p className="infoText">Ensure your legacy reaches loved ones exactly when you intend.</p>
+              </ul>
+          </section>
+
+
           <main>
             {isLoading ? <p>Loading...</p> : error ? <p className="errorMessage">{error}</p> : vaults.length > 0 ? (
               <div className="vaultsGrid">{vaults.map(vault => (
@@ -172,6 +191,9 @@ export default function DashboardPage(): JSX.Element {
             ) : <p>You haven't created any vaults yet.</p>}
           </main>
         </div>
+        <footer className="footer">
+          <p>&copy; {new Date().getFullYear()} P.Shreyas Reddy. All Rights Reserved.</p>
+        </footer>
       </div>
       {isModalOpen && (
         <div className="modalOverlay" onClick={closeModal}>
