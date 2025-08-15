@@ -10,9 +10,12 @@ export default function CreatePage(): JSX.Element {
     onUnauthenticated() { router.push('/login') } 
   });
   
-  const [name, setName] = useState<string>(''); // New: vault name
+  const [name, setName] = useState<string>('');
   const [message, setMessage] = useState<string>('');
   const [password, setPassword] = useState<string>('');
+  // --- NEW: State for recipient emails ---
+  const [recipientEmails, setRecipientEmails] = useState<string>('');
+  
   const [cid, setCid] = useState<string>('');
   const [isLoading, setIsLoading] = useState<boolean>(false);
   const [error, setError] = useState<string>('');
@@ -30,17 +33,17 @@ export default function CreatePage(): JSX.Element {
     setCopied(false);
 
     try {
-      // Step 1: Upload the message content to Pinata
       const pinataResponse = await axios.post('/api/pinata/upload', { 
         content: { message } 
       });
       const realCid = pinataResponse.data.cid;
 
-      // Step 2: Save CID, name, and password in your DB
+      // --- NEW: Send recipientEmails to the backend ---
       const vaultResponse = await axios.post('/api/vaults/create', { 
         cid: realCid,
         password,
-        name
+        name,
+        recipientEmails, // The comma-separated string of emails
       });
 
       setCid(vaultResponse.data.cid);
@@ -54,10 +57,20 @@ export default function CreatePage(): JSX.Element {
 
   const handleCopyToClipboard = (): void => {
     if (cid) {
-      navigator.clipboard.writeText(cid).then(() => {
+      // Using document.execCommand for broader compatibility in iFrames
+      const textArea = document.createElement("textarea");
+      textArea.value = cid;
+      document.body.appendChild(textArea);
+      textArea.focus();
+      textArea.select();
+      try {
+        document.execCommand('copy');
         setCopied(true);
         setTimeout(() => setCopied(false), 2000);
-      });
+      } catch (err) {
+        console.error('Failed to copy text: ', err);
+      }
+      document.body.removeChild(textArea);
     }
   };
 
@@ -113,6 +126,15 @@ export default function CreatePage(): JSX.Element {
             placeholder="Enter your secret message..."
             value={message}
             onChange={(e) => setMessage(e.target.value)}
+            disabled={isLoading}
+          />
+          {/* --- NEW: Email input field --- */}
+          <input
+            className="styledInput"
+            type="text"
+            placeholder="Recipient Emails (comma-separated)"
+            value={recipientEmails}
+            onChange={(e) => setRecipientEmails(e.target.value)}
             disabled={isLoading}
           />
           <input

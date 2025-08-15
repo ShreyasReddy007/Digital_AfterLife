@@ -50,6 +50,20 @@ export default async function handler(
     });
     
     const buffer = Buffer.from(contentResponse.data);
+
+    // --- THIS IS THE KEY LOGIC CHANGE ---
+
+    // Case 1: It's a text-based vault (created via the 'Create' page)
+    if (!vault.mimeType) {
+      const jsonContent = JSON.parse(buffer.toString('utf8'));
+      res.status(200).json({
+        type: 'json', // Tell the frontend it's a text message
+        data: jsonContent.message, // Send ONLY the message string
+      });
+      return;
+    }
+
+    // Case 2: It's a file-based vault (created via the 'Upload' page)
     const mimeType = vault.mimeType || 'application/octet-stream';
     const fileName = vault.originalFilename || 'vault_content';
     const dataUri = `data:${mimeType};base64,${buffer.toString('base64')}`;

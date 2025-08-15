@@ -10,6 +10,9 @@ export default function UploadPage(): JSX.Element {
   const [name, setName] = useState<string>('');
   const [file, setFile] = useState<File | null>(null);
   const [password, setPassword] = useState<string>('');
+  // --- NEW: State for recipient emails ---
+  const [recipientEmails, setRecipientEmails] = useState<string>('');
+
   const [cid, setCid] = useState<string>('');
   const [isLoading, setIsLoading] = useState<boolean>(false);
   const [error, setError] = useState<string>('');
@@ -33,7 +36,6 @@ export default function UploadPage(): JSX.Element {
     formData.append('file', file);
     
     try {
-      // Step 1: Upload to Pinata
       const pinataResponse = await axios.post('/api/pinata/uploadFile', formData, {
         headers: {
           'Content-Type': 'multipart/form-data',
@@ -42,13 +44,14 @@ export default function UploadPage(): JSX.Element {
 
       const realCid = pinataResponse.data.cid;
 
-      // Step 2: Send file metadata along with vault info to your create API
+      // --- NEW: Send recipientEmails to the backend ---
       const vaultResponse = await axios.post('/api/vaults/create', { 
         cid: realCid, 
         password, 
         name,
-        originalFilename: file.name, // Send the original filename
-        mimeType: file.type || 'application/octet-stream', // Send the file's MIME type
+        originalFilename: file.name,
+        mimeType: file.type || 'application/octet-stream',
+        recipientEmails, // The comma-separated string of emails
       });
       
       setCid(vaultResponse.data.cid);
@@ -92,6 +95,16 @@ export default function UploadPage(): JSX.Element {
             <span>{file ? file.name : 'Click to select a file'}</span>
           </label>
           <input id="file-upload" type="file" onChange={handleFileChange} disabled={isLoading} style={{ display: 'none' }} />
+
+          {/* --- NEW: Email input field --- */}
+          <input
+            className="styledInput"
+            type="text"
+            placeholder="Recipient Emails (comma-separated)"
+            value={recipientEmails}
+            onChange={(e) => setRecipientEmails(e.target.value)}
+            disabled={isLoading}
+          />
 
           <input className="styledInput" type="password" placeholder="Enter vault password" value={password} onChange={(e) => setPassword(e.target.value)} disabled={isLoading} />
         </div>

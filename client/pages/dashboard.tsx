@@ -100,17 +100,23 @@ export default function DashboardPage(): JSX.Element {
     }
   };
 
+  // --- THIS FUNCTION IS UPDATED ---
   const renderUnlockedContent = () => {
     if (!unlockedContent) return null;
+
+    // If the content is a text message, display it directly in the matrix-style box.
     if (unlockedContent.type === 'json') {
-      return <pre className="unlockedContent">{JSON.stringify(unlockedContent.data, null, 2)}</pre>;
+      return <pre className="unlockedContent">{unlockedContent.data}</pre>;
     }
+    
+    // If the content is a file, handle it as an image or a generic download.
     if (unlockedContent.type === 'file') {
       if (unlockedContent.data.startsWith('data:image')) {
         return <img src={unlockedContent.data} alt="Unlocked content" style={{ maxWidth: '100%', borderRadius: '0.5rem' }} />;
       }
       return <a href={unlockedContent.data} download={unlockedContent.fileName || 'vault_content'} className="downloadLink">Download File</a>;
     }
+
     return null;
   };
 
@@ -126,7 +132,9 @@ export default function DashboardPage(): JSX.Element {
     .navButton:hover { background-color: rgba(0,0,0,0.4); }
     .infoSection { background-color: rgba(255, 255, 255, 0.05); border: 1px solid #334155; border-radius: 0.75rem; padding: 1.5rem 2rem; margin-bottom: 2.5rem; text-align: center; }
     .infoTitle { font-size: 1.5rem; font-weight: 600; margin-top: 0; margin-bottom: 0.75rem; color: #e2e8f0; }
-    .infoText { font-size: 1rem; color: #94a3b8; line-height: 1.6; max-width: 800px; margin: 0 auto; }
+    .infosubTitle { font-size: 1.2rem; font-weight: 500; margin-top: 0; margin-bottom: 0.75rem; color: #d1d5db; }
+    .infoPoints { list-style: none; padding: 0; }
+    .infoText { font-size: 1rem; color: #94a3b8; line-height: 1.6; max-width: 800px; margin: 0.5rem auto; }
     .vaultsGrid { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 1.5rem; }
     .vaultCard { background-color: rgba(0,0,0,0.3); border: 1px solid #334155; border-radius: 0.5rem; padding: 1.5rem; display: flex; flex-direction: column; justify-content: space-between; }
     .vaultName { font-size: 1.125rem; font-weight: 600; margin: 0; word-break: break-all; }
@@ -172,7 +180,6 @@ export default function DashboardPage(): JSX.Element {
               <p className="infoText">Ensure your legacy reaches loved ones exactly when you intend.</p>
               </ul>
           </section>
-
 
           <main>
             {isLoading ? <p>Loading...</p> : error ? <p className="errorMessage">{error}</p> : vaults.length > 0 ? (
