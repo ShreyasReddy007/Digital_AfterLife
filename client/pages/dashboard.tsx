@@ -1,3 +1,4 @@
+// pages/dashboard.tsx
 import React, { useState, useEffect, JSX } from 'react';
 import { useSession, signOut } from 'next-auth/react';
 import { useRouter } from 'next/router';
@@ -8,12 +9,13 @@ interface Vault {
   cid: string;
   name: string;
   created_at: string;
+  triggerDate: string | null;
 }
 
 interface UnlockedContent {
   type: 'json' | 'file';
   data: any;
-  fileName?: string; // Added to support original filenames
+  fileName?: string;
 }
 
 export default function DashboardPage(): JSX.Element {
@@ -100,16 +102,13 @@ export default function DashboardPage(): JSX.Element {
     }
   };
 
-  // --- THIS FUNCTION IS UPDATED ---
   const renderUnlockedContent = () => {
     if (!unlockedContent) return null;
-
-    // If the content is a text message, display it directly in the matrix-style box.
+    
     if (unlockedContent.type === 'json') {
-      return <pre className="unlockedContent">{unlockedContent.data}</pre>;
+      return <pre className="unlockedContent">{JSON.stringify(unlockedContent.data, null, 2)}</pre>;
     }
     
-    // If the content is a file, handle it as an image or a generic download.
     if (unlockedContent.type === 'file') {
       if (unlockedContent.data.startsWith('data:image')) {
         return <img src={unlockedContent.data} alt="Unlocked content" style={{ maxWidth: '100%', borderRadius: '0.5rem' }} />;
@@ -124,7 +123,9 @@ export default function DashboardPage(): JSX.Element {
     .pageContainer { display: flex; flex-direction: column; min-height: 100vh; width: 100%; background: linear-gradient(to bottom right, #0f172a, #000000, #3b0764); padding: 2rem 1rem; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; color: white; }
     .dashboardContent { max-width: 1200px; margin: 0 auto; width: 100%; }
     .header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 2rem; }
+    .header-left { display: flex; align-items: center; gap: 1rem; }
     .title { font-size: 2.25rem; font-weight: 700; margin: 0; }
+    .refreshButton { background: none; border: 1px solid #475569; color: #94a3b8; padding: 0.5rem; border-radius: 50%; cursor: pointer; display: flex; align-items: center; justify-content: center; }
     .signOutButton { background: none; border: 1px solid #475569; color: #e14b29ff; padding: 0.5rem 1rem; border-radius: 0.5rem; cursor: pointer; transition: background-color 0.2s, color 0.2s; }
     .signOutButton:hover { background-color: #e14b29ff; color: white; }
     .navActions { display: flex; gap: 1rem; margin-bottom: 2rem; }
@@ -138,8 +139,9 @@ export default function DashboardPage(): JSX.Element {
     .vaultsGrid { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 1.5rem; }
     .vaultCard { background-color: rgba(0,0,0,0.3); border: 1px solid #334155; border-radius: 0.5rem; padding: 1.5rem; display: flex; flex-direction: column; justify-content: space-between; }
     .vaultName { font-size: 1.125rem; font-weight: 600; margin: 0; word-break: break-all; }
-    .vaultDate { font-size: 0.75rem; color: #94a3b8; margin-top: 1rem; margin-bottom: 1.5rem; }
-    .vaultActions { display: flex; gap: 0.5rem; margin-top: 1rem; }
+    .vaultDate { font-size: 0.75rem; color: #94a3b8; margin-top: 1rem; margin-bottom: 0.5rem; }
+    .triggerInfo { font-size: 0.875rem; color: #a5b4fc; margin-top: 1rem; padding: 0.5rem; background-color: rgba(71, 85, 105, 0.2); border-radius: 0.25rem; text-align: center; }
+    .vaultActions { display: flex; gap: 0.5rem; margin-top: 1.5rem; }
     .unlockButton { flex-grow: 1; padding: 0.5rem 1rem; border-radius: 0.5rem; border: none; cursor: pointer; font-weight: 500; background: linear-gradient(to right, #581c87, #9333ea); color: white; }
     .deleteButton { padding: 0.5rem 1rem; border-radius: 0.5rem; border: none; cursor: pointer; font-weight: 500; background-color: #be123c; color: white; }
     .modalOverlay { position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.7); backdrop-filter: blur(5px); display: flex; align-items: center; justify-content: center; z-index: 1000; }
@@ -163,12 +165,21 @@ export default function DashboardPage(): JSX.Element {
         <style dangerouslySetInnerHTML={{ __html: cssStyles }} />
         <div className="dashboardContent">
           <header className="header">
-            <div><h1 className="title">My Vaults</h1><p style={{ margin: 0, color: '#94a3b8' }}>Welcome, {session?.user?.name}</p></div>
+            <div className="header-left">
+              <h1 className="title">My Vaults</h1>
+              <button className="refreshButton" onClick={fetchVaults} title="Refresh Vaults">
+                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" viewBox="0 0 16 16">
+                  <path fillRule="evenodd" d="M8 3a5 5 0 1 0 4.546 2.914.5.5 0 0 1 .908-.417A6 6 0 1 1 8 2v1z"/>
+                  <path d="M8 4.466V.534a.25.25 0 0 1 .41-.192l2.36 1.966c.12.1.12.284 0 .384L8.41 4.658A.25.25 0 0 1 8 4.466z"/>
+                </svg>
+              </button>
+            </div>
             <button className="signOutButton" onClick={() => signOut()}>Sign Out</button>
           </header>
           <nav className="navActions">
             <div className="navButton" onClick={() => router.push('/create')}>Create New Vault</div>
             <div className="navButton" onClick={() => router.push('/upload')}>Upload File</div>
+            <div className="navButton" onClick={() => router.push('/trigger')}>Set Trigger Date</div>
           </nav>
 
           <section className="infoSection">
@@ -188,6 +199,11 @@ export default function DashboardPage(): JSX.Element {
                   <div>
                     <h3 className="vaultName">{vault.name}</h3>
                     <p className="vaultDate">Created: {new Date(vault.created_at).toLocaleString()}</p>
+                    {vault.triggerDate && (
+                      <div className="triggerInfo">
+                        Trigger set for: {new Date(vault.triggerDate).toLocaleDateString()}
+                      </div>
+                    )}
                   </div>
                   <div className="vaultActions">
                     <button className="unlockButton" onClick={() => openUnlockModal(vault)}>Unlock</button>

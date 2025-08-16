@@ -1,3 +1,4 @@
+// pages/api/vaults/index.ts
 import { Pool } from 'pg';
 import type { NextApiRequest, NextApiResponse } from 'next';
 import { getServerSession } from "next-auth/next";
@@ -11,21 +12,17 @@ export default async function handler(
   req: NextApiRequest,
   res: NextApiResponse
 ) {
-  // Secure the endpoint by checking for a valid session
   const session = await getServerSession(req, res, authOptions);
 
   if (!session || !session.user?.id) {
     return res.status(401).json({ error: 'Unauthorized' });
   }
 
-  // Handle GET request to fetch vaults
   if (req.method === 'GET') {
     try {
       const userId = session.user.id;
-      
-      // **KEY CHANGE: Added "name" to the SELECT statement**
       const { rows } = await pool.query(
-        'SELECT id, cid, name, created_at FROM vaults WHERE "userId" = $1 ORDER BY created_at DESC',
+        'SELECT id, cid, name, created_at, "triggerDate" FROM vaults WHERE "userId" = $1 ORDER BY created_at DESC',
         [userId]
       );
 
@@ -35,7 +32,6 @@ export default async function handler(
       res.status(500).json({ error: 'Internal Server Error' });
     }
   } else {
-    // Reject any other HTTP method
     res.setHeader('Allow', ['GET']);
     res.status(405).end(`Method ${req.method} Not Allowed`);
   }
