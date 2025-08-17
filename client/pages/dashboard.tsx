@@ -10,6 +10,7 @@ interface Vault {
   name: string;
   created_at: string;
   triggerDate: string | null;
+  inactivityTrigger: boolean; // Added for the new feature
 }
 
 interface UnlockedContent {
@@ -53,6 +54,28 @@ export default function DashboardPage(): JSX.Element {
       fetchVaults();
     }
   }, [status]);
+  
+  const handleInactivityToggle = async (vaultId: number, isEnabled: boolean) => {
+    // Optimistically update the UI for a smooth experience
+    setVaults(currentVaults =>
+      currentVaults.map(v =>
+        v.id === vaultId ? { ...v, inactivityTrigger: isEnabled } : v
+      )
+    );
+
+    try {
+      // Send the change to the backend
+      await axios.post('/api/vaults/toggle-inactivity', { vaultId, isEnabled });
+    } catch (err) {
+      // If the API call fails, revert the change and show an error
+      setError('Failed to update trigger. Please try again.');
+      setVaults(currentVaults =>
+        currentVaults.map(v =>
+          v.id === vaultId ? { ...v, inactivityTrigger: !isEnabled } : v
+        )
+      );
+    }
+  };
 
   const openUnlockModal = (vault: Vault) => {
     setSelectedVault(vault);
@@ -153,6 +176,14 @@ export default function DashboardPage(): JSX.Element {
     .unlockedContent {background: rgba(0, 0, 0, 0.3);padding: 1rem;border-radius: 0.5rem;margin-top: 1.5rem;white-space: pre-wrap;font-family: monospace;color: #00FF41;text-shadow:0 0 5px #00FF41,0 0 10px #00FF41,0 0 20px #00FF41,0 0 40px #00FF41;}
     .downloadLink { display: block; margin-top: 1.5rem; padding: 1rem; background-color: #581c87; text-align: center; border-radius: 0.5rem; color: white; text-decoration: none; }
     .footer { text-align: center; padding-top: 2rem; margin-top: auto; color: #64748b; font-size: 0.875rem; }
+    .toggleContainer { display: flex; align-items: center; justify-content: space-between; margin-top: 1rem; padding-top: 1rem; border-top: 1px solid #334155; }
+    .toggleLabel { font-size: 0.875rem; color: #94a3b8; }
+    .switch { position: relative; display: inline-block; width: 40px; height: 24px; }
+    .switch input { opacity: 0; width: 0; height: 0; }
+    .slider { position: absolute; cursor: pointer; top: 0; left: 0; right: 0; bottom: 0; background-color: #475569; transition: .4s; border-radius: 24px; }
+    .slider:before { position: absolute; content: ""; height: 16px; width: 16px; left: 4px; bottom: 4px; background-color: white; transition: .4s; border-radius: 50%; }
+    input:checked + .slider { background-color: #9333ea; }
+    input:checked + .slider:before { transform: translateX(16px); }
   `;
 
   if (status === 'loading') {
@@ -168,7 +199,7 @@ export default function DashboardPage(): JSX.Element {
             <div className="header-left">
               <h1 className="title">My Vaults</h1>
               <button className="refreshButton" onClick={fetchVaults} title="Refresh Vaults">
-                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" viewBox="0 0 16 16">
+                <svg xmlns="http://www.w.org/2000/svg" width="16" height="16" fill="currentColor" viewBox="0 0 16 16">
                   <path fillRule="evenodd" d="M8 3a5 5 0 1 0 4.546 2.914.5.5 0 0 1 .908-.417A6 6 0 1 1 8 2v1z"/>
                   <path d="M8 4.466V.534a.25.25 0 0 1 .41-.192l2.36 1.966c.12.1.12.284 0 .384L8.41 4.658A.25.25 0 0 1 8 4.466z"/>
                 </svg>
@@ -205,9 +236,22 @@ export default function DashboardPage(): JSX.Element {
                       </div>
                     )}
                   </div>
-                  <div className="vaultActions">
-                    <button className="unlockButton" onClick={() => openUnlockModal(vault)}>Unlock</button>
-                    <button className="deleteButton" onClick={() => openDeleteModal(vault)}>Delete</button>
+                  <div>
+                    <div className="toggleContainer">
+                      <span className="toggleLabel">Inactivity Trigger</span>
+                      <label className="switch">
+                        <input
+                          type="checkbox"
+                          checked={vault.inactivityTrigger}
+                          onChange={(e) => handleInactivityToggle(vault.id, e.target.checked)}
+                        />
+                        <span className="slider"></span>
+                      </label>
+                    </div>
+                    <div className="vaultActions">
+                      <button className="unlockButton" onClick={() => openUnlockModal(vault)}>Unlock</button>
+                      <button className="deleteButton" onClick={() => openDeleteModal(vault)}>Delete</button>
+                    </div>
                   </div>
                 </div>))}
               </div>
@@ -215,7 +259,12 @@ export default function DashboardPage(): JSX.Element {
           </main>
         </div>
         <footer className="footer">
-          <p>&copy; {new Date().getFullYear()} P.Shreyas Reddy. All Rights Reserved.</p>
+          <p style={{ fontSize: '0.8rem', color: '#64748b', maxWidth: '650px', margin: '0 auto 1rem', lineHeight: '1.6' }}>
+            Disclaimer : By enabling the inactivity trigger, you acknowledge that its contents will be delivered to the designated recipients if your account remains inactive for a period of 6 months. This action is irreversible.
+            </p>
+          <p style={{ color: '#64748b', fontSize: '0.75rem' }}>
+            &copy; {new Date().getFullYear()} P.Shreyas Reddy. All Rights Reserved.
+          </p>
         </footer>
       </div>
       {isModalOpen && (

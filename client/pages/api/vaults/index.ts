@@ -21,8 +21,9 @@ export default async function handler(
   if (req.method === 'GET') {
     try {
       const userId = session.user.id;
+      // **MODIFIED**: Added "inactivityTrigger" to the SELECT statement
       const { rows } = await pool.query(
-        'SELECT id, cid, name, created_at, "triggerDate" FROM vaults WHERE "userId" = $1 ORDER BY created_at DESC',
+        'SELECT id, cid, name, created_at, "triggerDate", "inactivityTrigger" FROM vaults WHERE "userId" = $1 ORDER BY created_at DESC',
         [userId]
       );
 
