@@ -1,7 +1,7 @@
 // pages/api/cron/check-triggers.ts
 import { Pool } from 'pg';
 import type { NextApiRequest, NextApiResponse } from 'next';
-import { sendVaultDeliveryEmail } from '../../../lib/resend';
+import { sendVaultDeliveryEmail } from '../../../lib/nodemailer';
 
 const pool = new Pool({
   connectionString: process.env.DATABASE_URL,
@@ -11,15 +11,17 @@ export default async function handler(
   req: NextApiRequest,
   res: NextApiResponse
 ) {
+  // 1. Secure the endpoint
   const secret = req.headers.authorization?.split(' ')[1];
   if (secret !== process.env.CRON_SECRET) {
     return res.status(401).json({ error: 'Unauthorized' });
   }
 
   try {
+    // 2. Find all vaults that are due and not yet delivered
     const query = `
       SELECT 
-        v.id, v.cid, v.name, v."passwordHash", v."recipientEmails" as recipients
+        v.id, v.cid, v.name, v."recipientEmails" as recipients
       FROM 
         vaults v
       JOIN 
@@ -41,26 +43,22 @@ export default async function handler(
     let successCount = 0;
     let errorCount = 0;
 
+    // 3. Process each due vault
     for (const vault of dueVaults) {
       try {
-        // **NEW DEBUGGING LOG**: This will show us the exact data before the email is sent.
-        console.log(`Processing Vault ID: ${vault.id}. Details:`, JSON.stringify(vault, null, 2));
-
         if (!vault.recipients || vault.recipients.length === 0) {
-          console.warn(`Vault ID ${vault.id} has no recipients. Marking as failed.`);
-          errorCount++;
-          // Optionally mark as failed in DB to prevent retrying
-          // await pool.query('UPDATE vaults SET "deliveryStatus" = \'failed\' WHERE id = $1', [vault.id]);
+          console.warn(`Vault ID ${vault.id} has no recipients. Skipping.`);
           continue; 
         }
         
-        // We are not sending a password in the email anymore, so we don't pass it.
+        // 4. Send the delivery email using Nodemailer
         await sendVaultDeliveryEmail({
           recipients: vault.recipients,
           vaultName: vault.name,
           cid: vault.cid,
         });
 
+        // 5. Mark the vault as delivered to prevent re-sending
         await pool.query(
           'UPDATE vaults SET "deliveryStatus" = \'delivered\' WHERE id = $1',
           [vault.id]
