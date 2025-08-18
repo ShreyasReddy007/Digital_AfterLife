@@ -4,13 +4,23 @@ import { useSession, signOut } from 'next-auth/react';
 import { useRouter } from 'next/router';
 import axios from 'axios';
 
+// Interface for vaults created by the user
 interface Vault {
   id: number;
   cid: string;
   name: string;
   created_at: string;
   triggerDate: string | null;
-  inactivityTrigger: boolean; // Added for the new feature
+  inactivityTrigger: boolean;
+}
+
+// A new type for vaults shared with the user
+interface RecipientVault {
+  id: number;
+  cid: string;
+  name: string;
+  created_at: string;
+  ownerName: string;
 }
 
 interface UnlockedContent {
@@ -24,11 +34,12 @@ export default function DashboardPage(): JSX.Element {
   const router = useRouter();
   
   const [vaults, setVaults] = useState<Vault[]>([]);
+  const [recipientVaults, setRecipientVaults] = useState<RecipientVault[]>([]);
   const [isLoading, setIsLoading] = useState<boolean>(true);
   const [error, setError] = useState<string>('');
 
   const [isModalOpen, setIsModalOpen] = useState<boolean>(false);
-  const [selectedVault, setSelectedVault] = useState<Vault | null>(null);
+  const [selectedVault, setSelectedVault] = useState<Vault | RecipientVault | null>(null);
   const [password, setPassword] = useState<string>('');
   const [modalError, setModalError] = useState<string>('');
   const [unlockedContent, setUnlockedContent] = useState<UnlockedContent | null>(null);
@@ -37,13 +48,19 @@ export default function DashboardPage(): JSX.Element {
   const [isDeleteModalOpen, setIsDeleteModalOpen] = useState<boolean>(false);
   const [isDeleting, setIsDeleting] = useState<boolean>(false);
 
-  const fetchVaults = async () => {
+  const fetchAllData = async () => {
     setIsLoading(true);
+    setError('');
     try {
-      const res = await axios.get('/api/vaults');
-      setVaults(res.data);
+      const [myVaultsRes, recipientVaultsRes] = await Promise.all([
+        axios.get('/api/vaults'),
+        axios.get('/api/vaults/recipient-vaults')
+      ]);
+      setVaults(myVaultsRes.data);
+      setRecipientVaults(recipientVaultsRes.data);
     } catch (err) {
       setError('Failed to fetch vaults.');
+      console.error(err);
     } finally {
       setIsLoading(false);
     }
@@ -51,23 +68,19 @@ export default function DashboardPage(): JSX.Element {
 
   useEffect(() => {
     if (status === 'authenticated') {
-      fetchVaults();
+      fetchAllData();
     }
   }, [status]);
-  
+
   const handleInactivityToggle = async (vaultId: number, isEnabled: boolean) => {
-    // Optimistically update the UI for a smooth experience
     setVaults(currentVaults =>
       currentVaults.map(v =>
         v.id === vaultId ? { ...v, inactivityTrigger: isEnabled } : v
       )
     );
-
     try {
-      // Send the change to the backend
       await axios.post('/api/vaults/toggle-inactivity', { vaultId, isEnabled });
     } catch (err) {
-      // If the API call fails, revert the change and show an error
       setError('Failed to update trigger. Please try again.');
       setVaults(currentVaults =>
         currentVaults.map(v =>
@@ -77,26 +90,20 @@ export default function DashboardPage(): JSX.Element {
     }
   };
 
-  const openUnlockModal = (vault: Vault) => {
-    setSelectedVault(vault);
-    setIsModalOpen(true);
-    setPassword('');
+  const handleRecipientUnlock = async (vault: RecipientVault) => {
+    setIsUnlocking(true);
     setModalError('');
-    setUnlockedContent(null);
+    try {
+      const res = await axios.post('/api/vaults/recipient-unlock', { cid: vault.cid });
+      setUnlockedContent(res.data);
+    } catch (err: any) {
+      setModalError(err.response?.data?.error || 'Failed to unlock vault.');
+    } finally {
+      setIsUnlocking(false);
+    }
   };
 
-  const openDeleteModal = (vault: Vault) => {
-    setSelectedVault(vault);
-    setIsDeleteModalOpen(true);
-  };
-
-  const closeModal = () => {
-    setIsModalOpen(false);
-    setIsDeleteModalOpen(false);
-    setSelectedVault(null);
-  };
-
-  const handleUnlock = async () => {
+  const handleOwnerUnlock = async () => {
     if (!password || !selectedVault) return;
     setIsUnlocking(true);
     setModalError('');
@@ -110,14 +117,36 @@ export default function DashboardPage(): JSX.Element {
     }
   };
 
+  const openUnlockModal = (vault: Vault | RecipientVault) => {
+    setSelectedVault(vault);
+    setIsModalOpen(true);
+    setPassword('');
+    setModalError('');
+    setUnlockedContent(null);
+    if ('ownerName' in vault) {
+      handleRecipientUnlock(vault);
+    }
+  };
+
+  const openDeleteModal = (vault: Vault) => {
+    setSelectedVault(vault);
+    setIsDeleteModalOpen(true);
+  };
+
+  const closeModal = () => {
+    setIsModalOpen(false);
+    setIsDeleteModalOpen(false);
+    setSelectedVault(null);
+  };
+
   const handleDelete = async () => {
-    if (!selectedVault) return;
+    if (!selectedVault || 'ownerName' in selectedVault) return;
     setIsDeleting(true);
     setModalError('');
     try {
       await axios.post('/api/vaults/delete', { cid: selectedVault.cid });
       closeModal();
-      fetchVaults(); // Refresh the vault list
+      fetchAllData();
     } catch (err: any) {
       setModalError(err.response?.data?.error || 'Failed to delete vault.');
     } finally {
@@ -127,18 +156,18 @@ export default function DashboardPage(): JSX.Element {
 
   const renderUnlockedContent = () => {
     if (!unlockedContent) return null;
-    
     if (unlockedContent.type === 'json') {
       return <pre className="unlockedContent">{JSON.stringify(unlockedContent.data, null, 2)}</pre>;
     }
-    
     if (unlockedContent.type === 'file') {
-      if (unlockedContent.data.startsWith('data:image')) {
+      if (typeof unlockedContent.data === 'string' && unlockedContent.data.startsWith('data:image')) {
         return <img src={unlockedContent.data} alt="Unlocked content" style={{ maxWidth: '100%', borderRadius: '0.5rem' }} />;
       }
-      return <a href={unlockedContent.data} download={unlockedContent.fileName || 'vault_content'} className="downloadLink">Download File</a>;
+      // This part might need adjustment based on the actual data format from your API
+      const blob = new Blob([JSON.stringify(unlockedContent.data, null, 2)], { type: 'application/octet-stream' });
+      const url = URL.createObjectURL(blob);
+      return <a href={url} download={unlockedContent.fileName || 'vault_content'} className="downloadLink">Download File</a>;
     }
-
     return null;
   };
 
@@ -175,7 +204,7 @@ export default function DashboardPage(): JSX.Element {
     .errorMessage { color: #fcd34d; text-align: center; margin-top: 1rem; }
     .unlockedContent {background: rgba(0, 0, 0, 0.3);padding: 1rem;border-radius: 0.5rem;margin-top: 1.5rem;white-space: pre-wrap;font-family: monospace;color: #00FF41;text-shadow:0 0 5px #00FF41,0 0 10px #00FF41,0 0 20px #00FF41,0 0 40px #00FF41;}
     .downloadLink { display: block; margin-top: 1.5rem; padding: 1rem; background-color: #581c87; text-align: center; border-radius: 0.5rem; color: white; text-decoration: none; }
-    .footer { text-align: center; padding-top: 2rem; margin-top: auto; color: #64748b; font-size: 0.875rem; }
+    .footer { text-align: center; padding-top: 2rem; margin-top: auto; }
     .toggleContainer { display: flex; align-items: center; justify-content: space-between; margin-top: 1rem; padding-top: 1rem; border-top: 1px solid #334155; }
     .toggleLabel { font-size: 0.875rem; color: #94a3b8; }
     .switch { position: relative; display: inline-block; width: 40px; height: 24px; }
@@ -197,9 +226,9 @@ export default function DashboardPage(): JSX.Element {
         <div className="dashboardContent">
           <header className="header">
             <div className="header-left">
-              <h1 className="title">My Vaults</h1>
-              <button className="refreshButton" onClick={fetchVaults} title="Refresh Vaults">
-                <svg xmlns="http://www.w.org/2000/svg" width="16" height="16" fill="currentColor" viewBox="0 0 16 16">
+              <h1 className="title">Dashboard</h1>
+              <button className="refreshButton" onClick={fetchAllData} title="Refresh Vaults">
+                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" viewBox="0 0 16 16">
                   <path fillRule="evenodd" d="M8 3a5 5 0 1 0 4.546 2.914.5.5 0 0 1 .908-.417A6 6 0 1 1 8 2v1z"/>
                   <path d="M8 4.466V.534a.25.25 0 0 1 .41-.192l2.36 1.966c.12.1.12.284 0 .384L8.41 4.658A.25.25 0 0 1 8 4.466z"/>
                 </svg>
@@ -220,10 +249,11 @@ export default function DashboardPage(): JSX.Element {
               <p className="infoText">Store heartfelt messages, memories, and documents securely.</p>
               <p className="infoText">Encrypted to protect your privacy until the right moment arrives.</p>
               <p className="infoText">Ensure your legacy reaches loved ones exactly when you intend.</p>
-              </ul>
+            </ul>
           </section>
 
           <main>
+            <h2 className="title" style={{ fontSize: '1.75rem', marginBottom: '1.5rem' }}>My Vaults</h2>
             {isLoading ? <p>Loading...</p> : error ? <p className="errorMessage">{error}</p> : vaults.length > 0 ? (
               <div className="vaultsGrid">{vaults.map(vault => (
                 <div key={vault.id} className="vaultCard">
@@ -256,12 +286,30 @@ export default function DashboardPage(): JSX.Element {
                 </div>))}
               </div>
             ) : <p>You haven't created any vaults yet.</p>}
+
+            {recipientVaults.length > 0 && (
+              <div style={{marginTop: '4rem'}}>
+                <h2 className="title" style={{ fontSize: '1.75rem', marginBottom: '1.5rem' }}>Shared With Me</h2>
+                <div className="vaultsGrid">{recipientVaults.map(vault => (
+                  <div key={vault.id} className="vaultCard">
+                    <div>
+                      <h3 className="vaultName">{vault.name}</h3>
+                      <p className="vaultDate">Shared by: {vault.ownerName}</p>
+                      <p className="vaultDate">Delivered: {new Date(vault.created_at).toLocaleString()}</p>
+                    </div>
+                    <div className="vaultActions">
+                      <button className="unlockButton" onClick={() => openUnlockModal(vault)}>View Content</button>
+                    </div>
+                  </div>))}
+                </div>
+              </div>
+            )}
           </main>
         </div>
         <footer className="footer">
-          <p style={{ fontSize: '0.8rem', color: '#64748b', maxWidth: '650px', margin: '0 auto 1rem', lineHeight: '1.6' }}>
-            Disclaimer : By enabling the inactivity trigger, you acknowledge that its contents will be delivered to the designated recipients if your account remains inactive for a period of 6 months. This action is irreversible.
-            </p>
+          <p style={{ fontSize: '0.8rem', color: '#94a3b8', maxWidth: '650px', margin: '0 auto 1rem', lineHeight: '1.6' }}>
+           Disclaimer : By enabling the inactivity trigger for a vault, you agree that its contents will be delivered to the recipients if your account remains inactive for a period of 6 months. This action is irreversible.
+          </p>
           <p style={{ color: '#64748b', fontSize: '0.75rem' }}>
             &copy; {new Date().getFullYear()} P.Shreyas Reddy. All Rights Reserved.
           </p>
@@ -270,20 +318,22 @@ export default function DashboardPage(): JSX.Element {
       {isModalOpen && (
         <div className="modalOverlay" onClick={closeModal}>
           <div className="modalContent" onClick={e => e.stopPropagation()}>
-            <div className="modalHeader"><h2 style={{margin:0}}>Unlock Vault</h2><button className="modalCloseButton" onClick={closeModal}>&times;</button></div>
+            <div className="modalHeader"><h2 style={{margin:0}}>Vault Content</h2><button className="modalCloseButton" onClick={closeModal}>&times;</button></div>
             <p style={{color: '#94a3b8', wordBreak: 'break-all'}}>CID: {selectedVault?.cid}</p>
+            
             {unlockedContent ? (
-              <div>
-                <p>Content Unlocked:</p>
-                {renderUnlockedContent()}
-              </div>
+              <div>{renderUnlockedContent()}</div>
+            ) : isUnlocking ? (
+              <p>Unlocking...</p>
+            ) : (selectedVault && 'ownerName' in selectedVault) ? (
+              <p>Verifying access and retrieving content...</p>
             ) : (
               <>
                 <input type="password" className="styledInput" placeholder="Enter vault password" value={password} onChange={e => setPassword(e.target.value)} disabled={isUnlocking} />
-                <button className="unlockButton" style={{width: '100%'}} onClick={handleUnlock} disabled={isUnlocking}>{isUnlocking ? 'Unlocking...' : 'Unlock'}</button>
-                {modalError && <p className="errorMessage">{modalError}</p>}
+                <button className="unlockButton" style={{width: '100%'}} onClick={handleOwnerUnlock} disabled={isUnlocking}>{isUnlocking ? 'Unlocking...' : 'Unlock'}</button>
               </>
             )}
+            {modalError && <p className="errorMessage">{modalError}</p>}
           </div>
         </div>
       )}
