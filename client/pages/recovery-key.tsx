@@ -3,6 +3,7 @@ import React, { useState, JSX } from 'react';
 import { useSession } from 'next-auth/react';
 import { useRouter } from 'next/router';
 import axios from 'axios';
+import Head from 'next/head';
 
 export default function RecoveryKeyPage(): JSX.Element {
   const { status } = useSession({ required: true, onUnauthenticated() { router.push('/login') }});
@@ -52,7 +53,12 @@ export default function RecoveryKeyPage(): JSX.Element {
   };
 
   const cssStyles = `
-    .pageContainer { min-height: 100vh; width: 100%; background: linear-gradient(to bottom right, #0f172a, #000000, #3b0764); display: flex; align-items: center; justify-content: center; padding: 1rem; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; }
+    html, body {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+    .pageContainer { min-height: 100vh; width: 100%; background: linear-gradient(to bottom right, #0f172a, #000000, #3b0764); display: flex; align-items: center; justify-content: center; padding: 1rem; font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; }
     .card { width: 100%; max-width: 600px; background-color: rgba(0, 0, 0, 0.2); backdrop-filter: blur(10px); border-radius: 1rem; box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.25); padding: 2rem; border: 1px solid #334155; display: flex; flex-direction: column; gap: 1.5rem; }
     .title { font-size: 1.875rem; font-weight: 700; color: white; margin: 0; text-align: center; }
     .description { text-align: center; color: #94a3b8; margin-top: -0.5rem; }
@@ -70,66 +76,80 @@ export default function RecoveryKeyPage(): JSX.Element {
   `;
 
   if (status === 'loading') {
-    return <div className="pageContainer"><style dangerouslySetInnerHTML={{ __html: cssStyles }} /><p style={{color: 'white'}}>Loading...</p></div>;
+    return (
+        <div className="pageContainer">
+            <Head>
+                <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" />
+            </Head>
+            <style dangerouslySetInnerHTML={{ __html: cssStyles }} />
+            <p style={{color: 'white'}}>Loading...</p>
+        </div>
+    );
   }
 
   return (
-    <div className="pageContainer">
-      <style dangerouslySetInnerHTML={{ __html: cssStyles }} />
-      <div className="card">
-        <h1 className="title">Set Your Recovery Key</h1>
-        <p className="description">Generate a one-time key to give to a trusted person. This key can be used to trigger the delivery of your vaults in an emergency.</p>
-        
-        <button className="actionButton secondaryButton" onClick={generateRecoveryKey}>
-          {recoveryKey ? 'Generate New Key' : 'Generate Key'}
-        </button>
-
-        {recoveryKey && (
-          <>
-            <div className="warning">
-              <strong>Important:</strong> Save this key somewhere safe and offline. You will not be shown this key again.
-            </div>
-
-            <div className="formGroup">
-              <label className="label">Your New Recovery Key</label>
-              <div className="keyDisplay">
-                <span>{recoveryKey}</span>
-                <button className="copyButton" onClick={handleCopyToClipboard} title="Copy to clipboard">
-                  {keyCopied ? 'Copied!' : 
-                    <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" viewBox="0 0 16 16">
-                      <path d="M4 1.5H3a2 2 0 0 0-2 2V14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V3.5a2 2 0 0 0-2-2h-1v1h1a1 1 0 0 1 1 1V14a1 1 0 0 1-1 1H3a1 1 0 0 1-1-1V3.5a1 1 0 0 1 1-1h1v-1z"/>
-                      <path d="M9.5 1a.5.5 0 0 1 .5.5v1a.5.5 0 0 1-.5.5h-3a.5.5 0 0 1-.5-.5v-1a.5.5 0 0 1 .5-.5h3zM-1 2.5a.5.5 0 0 1 .5-.5h1a.5.5 0 0 1 .5.5v1a.5.5 0 0 1-.5.5h-1a.5.5 0 0 1-.5-.5v-1z"/>
-                    </svg>
-                  }
-                </button>
-              </div>
-            </div>
-
-            <div className="formGroup">
-              <label htmlFor="key-confirm" className="label">Confirm Your Recovery Key</label>
-              <input 
-                id="key-confirm" 
-                type="text" 
-                className="styledInput"
-                placeholder="Type the key here to confirm you've saved it"
-                value={confirmationKey}
-                onChange={(e) => setConfirmationKey(e.target.value)}
-              />
-            </div>
-
-            <button 
-              className="actionButton" 
-              onClick={handleSetKey} 
-              disabled={isLoading || recoveryKey !== confirmationKey}
-            >
-              {isLoading ? 'Saving...' : 'Save and Activate Key'}
+    <>
+        <Head>
+            <title>Set Recovery Key</title>
+            <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" />
+        </Head>
+        <div className="pageContainer">
+        <style dangerouslySetInnerHTML={{ __html: cssStyles }} />
+        <div className="card">
+            <h1 className="title">Set Your Recovery Key</h1>
+            <p className="description">Generate a one-time key to give to a trusted person. This key can be used to trigger the delivery of your vaults in an emergency.</p>
+            
+            <button className="actionButton secondaryButton" onClick={generateRecoveryKey}>
+            {recoveryKey ? 'Generate New Key' : 'Generate Key'}
             </button>
-          </>
-        )}
-        
-        {error && <p className="errorMessage">{error}</p>}
-        {message && <p className="successMessage">{message}</p>}
-      </div>
-    </div>
+
+            {recoveryKey && (
+            <>
+                <div className="warning">
+                <strong>Important:</strong> Save this key somewhere safe and offline. You will not be shown this key again.
+                </div>
+
+                <div className="formGroup">
+                <label className="label">Your New Recovery Key</label>
+                <div className="keyDisplay">
+                    <span>{recoveryKey}</span>
+                    <button className="copyButton" onClick={handleCopyToClipboard} title="Copy to clipboard">
+                    {keyCopied ? 'Copied!' : 
+                        <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" viewBox="0 0 16 16">
+                        <path d="M4 1.5H3a2 2 0 0 0-2 2V14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V3.5a2 2 0 0 0-2-2h-1v1h1a1 1 0 0 1 1 1V14a1 1 0 0 1-1 1H3a1 1 0 0 1-1-1V3.5a1 1 0 0 1 1-1h1v-1z"/>
+                        <path d="M9.5 1a.5.5 0 0 1 .5.5v1a.5.5 0 0 1-.5.5h-3a.5.5 0 0 1-.5-.5v-1a.5.5 0 0 1 .5-.5h3zM-1 2.5a.5.5 0 0 1 .5-.5h1a.5.5 0 0 1 .5.5v1a.5.5 0 0 1-.5.5h-1a.5.5 0 0 1-.5-.5v-1z"/>
+                        </svg>
+                    }
+                    </button>
+                </div>
+                </div>
+
+                <div className="formGroup">
+                <label htmlFor="key-confirm" className="label">Confirm Your Recovery Key</label>
+                <input 
+                    id="key-confirm" 
+                    type="text" 
+                    className="styledInput"
+                    placeholder="Type the key here to confirm you've saved it"
+                    value={confirmationKey}
+                    onChange={(e) => setConfirmationKey(e.target.value)}
+                />
+                </div>
+
+                <button 
+                className="actionButton" 
+                onClick={handleSetKey} 
+                disabled={isLoading || recoveryKey !== confirmationKey}
+                >
+                {isLoading ? 'Saving...' : 'Save and Activate Key'}
+                </button>
+            </>
+            )}
+            
+            {error && <p className="errorMessage">{error}</p>}
+            {message && <p className="successMessage">{message}</p>}
+        </div>
+        </div>
+    </>
   );
 }

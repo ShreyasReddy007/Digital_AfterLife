@@ -1,6 +1,7 @@
 // pages/deliver.tsx
 import React, { useState, JSX } from 'react';
 import axios from 'axios';
+import Head from 'next/head';
 
 export default function DeliverPage(): JSX.Element {
   const [email, setEmail] = useState<string>('');
@@ -31,7 +32,12 @@ export default function DeliverPage(): JSX.Element {
   };
 
   const cssStyles = `
-    .pageContainer { min-height: 100vh; width: 100%; background: linear-gradient(to bottom right, #0f172a, #000000, #3b0764); display: flex; align-items: center; justify-content: center; padding: 1rem; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; }
+    html, body {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+    .pageContainer { min-height: 100vh; width: 100%; background: linear-gradient(to bottom right, #0f172a, #000000, #3b0764); display: flex; align-items: center; justify-content: center; padding: 1rem; font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; }
     .card { width: 100%; max-width: 500px; background-color: rgba(0, 0, 0, 0.2); backdrop-filter: blur(10px); border-radius: 1rem; box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.25); padding: 2rem; border: 1px solid #334155; display: flex; flex-direction: column; gap: 1.5rem; }
     .title { font-size: 1.875rem; font-weight: 700; color: white; margin: 0; text-align: center; }
     .formGroup { display: flex; flex-direction: column; gap: 0.5rem; }
@@ -45,37 +51,43 @@ export default function DeliverPage(): JSX.Element {
   `;
 
   return (
-    <div className="pageContainer">
-      <style dangerouslySetInnerHTML={{ __html: cssStyles }} />
-      <div className="card">
-        <h1 className="title">Deliver Vaults</h1>
-        <p className="label" style={{textAlign: 'center', color: '#94a3b8'}}>Enter the original owner's email and the recovery key they provided to trigger the immediate delivery of their vaults.</p>
-        <div className="formGroup">
-          <label htmlFor="email-input" className="label">Owner's Email Address</label>
-          <input 
-            id="email-input" 
-            type="email" 
-            className="styledInput"
-            value={email}
-            onChange={(e) => setEmail(e.target.value)}
-          />
+    <>
+      <Head>
+        <title>Deliver Vaults</title>
+        <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" />
+      </Head>
+      <div className="pageContainer">
+        <style dangerouslySetInnerHTML={{ __html: cssStyles }} />
+        <div className="card">
+          <h1 className="title">Deliver Vaults</h1>
+          <p className="label" style={{textAlign: 'center', color: '#94a3b8'}}>Enter the original owner's email and the recovery key they provided to trigger the immediate delivery of their vaults.</p>
+          <div className="formGroup">
+            <label htmlFor="email-input" className="label">Owner's Email Address</label>
+            <input 
+              id="email-input" 
+              type="email" 
+              className="styledInput"
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+            />
+          </div>
+          <div className="formGroup">
+            <label htmlFor="key-input" className="label">Recovery Key</label>
+            <input 
+              id="key-input" 
+              type="password" 
+              className="styledInput"
+              value={recoveryKey}
+              onChange={(e) => setRecoveryKey(e.target.value)}
+            />
+          </div>
+          <button className="actionButton" onClick={handleDeliver} disabled={isLoading}>
+            {isLoading ? 'Processing...' : 'Deliver Vaults'}
+          </button>
+          {error && <p className="errorMessage">{error}</p>}
+          {message && <p className="successMessage">{message}</p>}
         </div>
-        <div className="formGroup">
-          <label htmlFor="key-input" className="label">Recovery Key</label>
-          <input 
-            id="key-input" 
-            type="password" 
-            className="styledInput"
-            value={recoveryKey}
-            onChange={(e) => setRecoveryKey(e.target.value)}
-          />
-        </div>
-        <button className="actionButton" onClick={handleDeliver} disabled={isLoading}>
-          {isLoading ? 'Processing...' : 'Deliver Vaults'}
-        </button>
-        {error && <p className="errorMessage">{error}</p>}
-        {message && <p className="successMessage">{message}</p>}
       </div>
-    </div>
+    </>
   );
 }

@@ -2,6 +2,7 @@ import React, { JSX, useState } from 'react';
 import { useSession } from 'next-auth/react';
 import { useRouter } from 'next/router';
 import axios from 'axios';
+import Head from 'next/head';
 
 export default function UploadPage(): JSX.Element {
   const { status } = useSession({ required: true, onUnauthenticated() { router.push('/login') }});
@@ -10,7 +11,6 @@ export default function UploadPage(): JSX.Element {
   const [name, setName] = useState<string>('');
   const [file, setFile] = useState<File | null>(null);
   const [password, setPassword] = useState<string>('');
-  // --- NEW: State for recipient emails ---
   const [recipientEmails, setRecipientEmails] = useState<string>('');
 
   const [cid, setCid] = useState<string>('');
@@ -44,14 +44,13 @@ export default function UploadPage(): JSX.Element {
 
       const realCid = pinataResponse.data.cid;
 
-      // --- NEW: Send recipientEmails to the backend ---
       const vaultResponse = await axios.post('/api/vaults/create', { 
         cid: realCid, 
         password, 
         name,
         originalFilename: file.name,
         mimeType: file.type || 'application/octet-stream',
-        recipientEmails, // The comma-separated string of emails
+        recipientEmails,
       });
       
       setCid(vaultResponse.data.cid);
@@ -64,7 +63,12 @@ export default function UploadPage(): JSX.Element {
   };
 
   const cssStyles = `
-    .pageContainer { min-height: 100vh; width: 100%; background: linear-gradient(to bottom right, #0f172a, #000000, #3b0764); display: flex; align-items: center; justify-content: center; padding: 1rem; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; }
+    html, body {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+    .pageContainer { min-height: 100vh; width: 100%; background: linear-gradient(to bottom right, #0f172a, #000000, #3b0764); display: flex; align-items: center; justify-content: center; padding: 1rem; font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; }
     .vaultCard { width: 100%; max-width: 448px; background-color: rgba(0, 0, 0, 0.2); backdrop-filter: blur(10px); border-radius: 1rem; box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.25); padding: 2rem; border: 1px solid #334155; display: flex; flex-direction: column; gap: 1.5rem; }
     .header { text-align: center; }
     .title { font-size: 1.875rem; font-weight: 700; color: white; margin: 0;}
@@ -80,38 +84,51 @@ export default function UploadPage(): JSX.Element {
   `;
 
   if (status === 'loading') {
-    return <div className="pageContainer"><style dangerouslySetInnerHTML={{ __html: cssStyles }} /><p style={{color: 'white'}}>Loading...</p></div>;
+    return (
+        <div className="pageContainer">
+            <Head>
+                <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" />
+            </Head>
+            <style dangerouslySetInnerHTML={{ __html: cssStyles }} />
+            <p style={{color: 'white'}}>Loading...</p>
+        </div>
+    );
   }
   
   return (
-    <div className="pageContainer">
-      <style dangerouslySetInnerHTML={{ __html: cssStyles }} />
-      <div className="vaultCard">
-        <div className="header"><h1 className="title">Upload Secure File</h1></div>
-        <div className="form">
-          <input className="styledInput" placeholder="Vault Name" value={name} onChange={(e) => setName(e.target.value)} disabled={isLoading} />
-          
-          <label htmlFor="file-upload" className="fileInputLabel">
-            <span>{file ? file.name : 'Click to select a file'}</span>
-          </label>
-          <input id="file-upload" type="file" onChange={handleFileChange} disabled={isLoading} style={{ display: 'none' }} />
+    <>
+        <Head>
+            <title>Upload File</title>
+            <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" />
+        </Head>
+        <div className="pageContainer">
+        <style dangerouslySetInnerHTML={{ __html: cssStyles }} />
+        <div className="vaultCard">
+            <div className="header"><h1 className="title">Upload Secure File</h1></div>
+            <div className="form">
+            <input className="styledInput" placeholder="Vault Name" value={name} onChange={(e) => setName(e.target.value)} disabled={isLoading} />
+            
+            <label htmlFor="file-upload" className="fileInputLabel">
+                <span>{file ? file.name : 'Click to select a file'}</span>
+            </label>
+            <input id="file-upload" type="file" onChange={handleFileChange} disabled={isLoading} style={{ display: 'none' }} />
 
-          {/* --- NEW: Email input field --- */}
-          <input
-            className="styledInput"
-            type="text"
-            placeholder="Recipient Emails (comma-separated)"
-            value={recipientEmails}
-            onChange={(e) => setRecipientEmails(e.target.value)}
-            disabled={isLoading}
-          />
+            <input
+                className="styledInput"
+                type="text"
+                placeholder="Recipient Emails (comma-separated)"
+                value={recipientEmails}
+                onChange={(e) => setRecipientEmails(e.target.value)}
+                disabled={isLoading}
+            />
 
-          <input className="styledInput" type="password" placeholder="Enter vault password" value={password} onChange={(e) => setPassword(e.target.value)} disabled={isLoading} />
+            <input className="styledInput" type="password" placeholder="Enter vault password" value={password} onChange={(e) => setPassword(e.target.value)} disabled={isLoading} />
+            </div>
+            <button className="createButton" onClick={handleUpload} disabled={isLoading}>{isLoading ? 'Uploading...' : 'Upload & Create Vault'}</button>
+            {error && <p className="errorMessage">{error}</p>}
+            {cid && <div className="resultDisplay"><p>Vault Created Successfully!</p><code>{cid}</code></div>}
         </div>
-        <button className="createButton" onClick={handleUpload} disabled={isLoading}>{isLoading ? 'Uploading...' : 'Upload & Create Vault'}</button>
-        {error && <p className="errorMessage">{error}</p>}
-        {cid && <div className="resultDisplay"><p>Vault Created Successfully!</p><code>{cid}</code></div>}
-      </div>
-    </div>
+        </div>
+    </>
   );
 }

@@ -163,7 +163,6 @@ export default function DashboardPage(): JSX.Element {
       if (typeof unlockedContent.data === 'string' && unlockedContent.data.startsWith('data:image')) {
         return <img src={unlockedContent.data} alt="Unlocked content" style={{ maxWidth: '100%', borderRadius: '0.5rem' }} />;
       }
-      // This part might need adjustment based on the actual data format from your API
       const blob = new Blob([JSON.stringify(unlockedContent.data, null, 2)], { type: 'application/octet-stream' });
       const url = URL.createObjectURL(blob);
       return <a href={url} download={unlockedContent.fileName || 'vault_content'} className="downloadLink">Download File</a>;
@@ -172,6 +171,11 @@ export default function DashboardPage(): JSX.Element {
   };
 
   const cssStyles = `
+    html, body {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
     .pageContainer { display: flex; flex-direction: column; min-height: 100vh; width: 100%; background: linear-gradient(to bottom right, #0f172a, #000000, #3b0764); padding: 2rem 1rem; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; color: white; }
     .dashboardContent { max-width: 1200px; margin: 0 auto; width: 100%; }
     .header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 2rem; }
@@ -180,8 +184,8 @@ export default function DashboardPage(): JSX.Element {
     .refreshButton { background: none; border: 1px solid #475569; color: #94a3b8; padding: 0.5rem; border-radius: 50%; cursor: pointer; display: flex; align-items: center; justify-content: center; }
     .signOutButton { background: none; border: 1px solid #475569; color: #e14b29ff; padding: 0.5rem 1rem; border-radius: 0.5rem; cursor: pointer; transition: background-color 0.2s, color 0.2s; }
     .signOutButton:hover { background-color: #e14b29ff; color: white; }
-    .navActions { display: flex; gap: 1rem; margin-bottom: 2rem; }
-    .navButton { flex-grow: 1; padding: 1rem; background-color: rgba(0,0,0,0.2); border: 1px solid #475569; border-radius: 0.5rem; text-align: center; cursor: pointer; transition: background-color 0.2s; }
+    .navActions { display: flex; gap: 1rem; margin-bottom: 2rem; flex-wrap: wrap; }
+    .navButton { flex-grow: 1; padding: 1rem; background-color: rgba(0,0,0,0.2); border: 1px solid #475569; border-radius: 0.5rem; text-align: center; cursor: pointer; transition: background-color 0.2s; min-width: 150px; }
     .navButton:hover { background-color: rgba(0,0,0,0.4); }
     .infoSection { background-color: rgba(255, 255, 255, 0.05); border: 1px solid #334155; border-radius: 0.75rem; padding: 1.5rem 2rem; margin-bottom: 2.5rem; text-align: center; }
     .infoTitle { font-size: 1.5rem; font-weight: 600; margin-top: 0; margin-bottom: 0.75rem; color: #e2e8f0; }
@@ -240,6 +244,8 @@ export default function DashboardPage(): JSX.Element {
             <div className="navButton" onClick={() => router.push('/create')}>Create New Vault</div>
             <div className="navButton" onClick={() => router.push('/upload')}>Upload File</div>
             <div className="navButton" onClick={() => router.push('/trigger')}>Set Trigger Date</div>
+            <div className="navButton" onClick={() => router.push('/recovery-key')}>Set Recovery Key</div>
+            <div className="navButton" onClick={() => router.push('/deliver')}>Deliver by Key</div>
           </nav>
 
           <section className="infoSection">
