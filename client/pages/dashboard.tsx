@@ -3,8 +3,10 @@ import React, { useState, useEffect, JSX } from 'react';
 import { useSession, signOut } from 'next-auth/react';
 import { useRouter } from 'next/router';
 import axios from 'axios';
+import Head from 'next/head';
+import Image from 'next/image';
 
-// Interface for vaults created by the user
+// vaults created
 interface Vault {
   id: number;
   cid: string;
@@ -14,7 +16,7 @@ interface Vault {
   inactivityTrigger: boolean;
 }
 
-// A new type for vaults shared with the user
+// vaults shared
 interface RecipientVault {
   id: number;
   cid: string;
@@ -176,14 +178,46 @@ export default function DashboardPage(): JSX.Element {
       padding: 0;
       box-sizing: border-box;
     }
-    .pageContainer { display: flex; flex-direction: column; min-height: 100vh; width: 100%; background: linear-gradient(to bottom right, #0f172a, #000000, #3b0764); padding: 2rem 1rem; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; color: white; }
+    .pageContainer { display: flex; flex-direction: column; min-height: 100vh; width: 100%; background: linear-gradient(to bottom right, #0f172a, #000000, #3b0764); padding: 2rem 1rem; font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; color: white; }
     .dashboardContent { max-width: 1200px; margin: 0 auto; width: 100%; }
-    .header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 2rem; }
-    .header-left { display: flex; align-items: center; gap: 1rem; }
-    .title { font-size: 2.25rem; font-weight: 700; margin: 0; }
-    .refreshButton { background: none; border: 1px solid #475569; color: #94a3b8; padding: 0.5rem; border-radius: 50%; cursor: pointer; display: flex; align-items: center; justify-content: center; }
-    .signOutButton { background: none; border: 1px solid #475569; color: #e14b29ff; padding: 0.5rem 1rem; border-radius: 0.5rem; cursor: pointer; transition: background-color 0.2s, color 0.2s; }
+    .header {
+      position: relative;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      margin-bottom: 2rem;
+      padding: 1rem 0;
+    }
+    .header-title-container {
+      display: flex;
+      align-items: center;
+      gap: 1rem;
+    }
+    .siteTitle {
+      font-size: 3.25rem;
+      font-weight: 800;
+      margin: 0;
+      background: linear-gradient(90deg, #a78bfa, #7c3aed);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      background-clip: text;
+      color: transparent;
+    }
+    .signOutButton {
+      position: absolute;
+      right: 0;
+      top: 50%;
+      transform: translateY(-50%);
+      background: none;
+      border: 1px solid #475569;
+      color: #e14b29ff;
+      padding: 0.5rem 1rem;
+      border-radius: 0.5rem;
+      cursor: pointer;
+      transition: background-color 0.2s, color 0.2s;
+    }
     .signOutButton:hover { background-color: #e14b29ff; color: white; }
+    .title { font-size: 2.25rem; font-weight: 700; margin: 0; }
     .navActions { display: flex; gap: 1rem; margin-bottom: 2rem; flex-wrap: wrap; }
     .navButton { flex-grow: 1; padding: 1rem; background-color: rgba(0,0,0,0.2); border: 1px solid #475569; border-radius: 0.5rem; text-align: center; cursor: pointer; transition: background-color 0.2s; min-width: 150px; }
     .navButton:hover { background-color: rgba(0,0,0,0.4); }
@@ -220,23 +254,30 @@ export default function DashboardPage(): JSX.Element {
   `;
 
   if (status === 'loading') {
-    return <div className="pageContainer"><style dangerouslySetInnerHTML={{ __html: cssStyles }} /><p>Loading session...</p></div>;
+    return (
+        <div className="pageContainer">
+            <Head>
+                <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" />
+            </Head>
+            <style dangerouslySetInnerHTML={{ __html: cssStyles }} />
+            <p>Loading session...</p>
+        </div>
+    );
   }
 
   return (
     <>
+      <Head>
+          <title>Digital Afterlife</title>
+          <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" />
+      </Head>
       <div className="pageContainer">
         <style dangerouslySetInnerHTML={{ __html: cssStyles }} />
         <div className="dashboardContent">
           <header className="header">
-            <div className="header-left">
-              <h1 className="title">Dashboard</h1>
-              <button className="refreshButton" onClick={fetchAllData} title="Refresh Vaults">
-                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" viewBox="0 0 16 16">
-                  <path fillRule="evenodd" d="M8 3a5 5 0 1 0 4.546 2.914.5.5 0 0 1 .908-.417A6 6 0 1 1 8 2v1z"/>
-                  <path d="M8 4.466V.534a.25.25 0 0 1 .41-.192l2.36 1.966c.12.1.12.284 0 .384L8.41 4.658A.25.25 0 0 1 8 4.466z"/>
-                </svg>
-              </button>
+            <div className="header-title-container">
+              <Image src="/Logo.png" alt="Digital Afterlife Logo" width={150} height={150} />
+              <h1 className="siteTitle">Digital Afterlife</h1>
             </div>
             <button className="signOutButton" onClick={() => signOut()}>Sign Out</button>
           </header>
