@@ -158,7 +158,7 @@ export default function DashboardPage(): JSX.Element {
     }
   };
 
-  // **MODIFIED**: This function now correctly renders the combined content
+  //renders the combined content
   const renderUnlockedContent = () => {
     if (!unlockedContent) return null;
 

@@ -45,7 +45,7 @@ export default function CreatePage(): JSX.Element {
       let fileCid = null;
       let fileMeta = {};
 
-      // Step 1: Upload the file if it exists
+      // Upload the file
       if (file) {
         setLoadingStep('Uploading file...');
         const formData = new FormData();
@@ -57,7 +57,7 @@ export default function CreatePage(): JSX.Element {
         fileMeta = { originalFilename: file.name, mimeType: file.type || 'application/octet-stream' };
       }
 
-      // Step 2: Upload the JSON metadata (message + file CID)
+      // Upload the JSON metadata
       setLoadingStep('Creating vault structure...');
       const vaultContent = {
         message: message,
@@ -66,14 +66,14 @@ export default function CreatePage(): JSX.Element {
       const jsonRes = await axios.post('/api/pinata/upload', { content: vaultContent });
       const finalCid = jsonRes.data.cid;
 
-      // Step 3: Save the final CID and vault details to your database
+      // final CID and vault details to DB
       setLoadingStep('Securing vault...');
       const vaultResponse = await axios.post('/api/vaults/create', { 
         cid: finalCid,
         password,
         name,
         recipientEmails,
-        ...fileMeta, // Add originalFilename and mimeType if a file was uploaded
+        ...fileMeta,
       });
 
       setCid(vaultResponse.data.cid);

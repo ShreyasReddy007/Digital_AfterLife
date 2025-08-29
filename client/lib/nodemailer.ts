@@ -25,7 +25,6 @@ export const sendVaultDeliveryEmail = async ({
   }
 
   const subject = `A secure vault named "${vaultName}" has been delivered to you`;
-  // **MODIFIED**: This now links to your new viewer page
   const viewVaultUrl = `${process.env.NEXTAUTH_URL}/view/${cid}`;
 
   const emailBody = `
