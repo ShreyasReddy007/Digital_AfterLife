@@ -1,7 +1,5 @@
-// pages/api/vaults/recipient-unlock.ts
+// pages/api/vaults/public-view.ts
 import { NextApiRequest, NextApiResponse } from 'next';
-import { getServerSession } from 'next-auth/next';
-import { authOptions } from '../auth/[...nextauth]';
 import { Pool } from 'pg';
 import axios from 'axios';
 import { streamToBuffer } from '../../../lib/utils';
@@ -14,57 +12,52 @@ export default async function handler(
   req: NextApiRequest,
   res: NextApiResponse
 ) {
-  const session = await getServerSession(req, res, authOptions);
-
-  if (!session || !session.user?.email) {
-    return res.status(401).json({ error: 'Unauthorized' });
-  }
-
-  if (req.method === 'POST') {
+  if (req.method === 'GET') {
     try {
-      const { cid } = req.body;
-      const userEmail = session.user.email;
+      const { cid } = req.query;
 
-      if (!cid) {
-        return res.status(400).json({ error: 'CID is required.' });
+      if (!cid || typeof cid !== 'string') {
+        return res.status(400).json({ error: 'A valid CID is required.' });
       }
 
       const { rows } = await pool.query(
-        `SELECT * FROM vaults WHERE cid = $1 AND $2 = ANY("recipientEmails") AND "deliveryStatus" = 'delivered'`,
-        [cid, userEmail]
+        'SELECT "mimeType", "originalFilename" FROM vaults WHERE cid = $1',
+        [cid]
       );
-      const vault = rows[0];
+      const vaultMeta = rows[0];
 
-      if (!vault) {
-        return res.status(403).json({ error: 'Access denied.' });
+      if (!vaultMeta) {
+        return res.status(404).json({ error: 'Vault not found.' });
       }
-      
+
       const jsonResponse = await axios.get(`https://gateway.pinata.cloud/ipfs/${cid}`);
       const vaultContent = jsonResponse.data;
 
+      //fetch the file and convert it
       if (vaultContent.fileCid) {
         const fileResponse = await axios.get(`https://gateway.pinata.cloud/ipfs/${vaultContent.fileCid}`, { responseType: 'stream' });
         const buffer = await streamToBuffer(fileResponse.data);
         const base64Data = buffer.toString('base64');
-        const dataUrl = `data:${vault.mimeType};base64,${base64Data}`;
+        const dataUrl = `data:${vaultMeta.mimeType};base64,${base64Data}`;
         
         return res.status(200).json({ 
             message: vaultContent.message || null,
             file: {
                 dataUrl: dataUrl,
-                fileName: vault.originalFilename
+                fileName: vaultMeta.originalFilename
             }
         });
       }
       
+      // If there's only a message
       res.status(200).json({ message: vaultContent.message || null, file: null });
 
     } catch (error) {
-      console.error('Recipient unlock error:', error);
-      res.status(500).json({ error: 'Failed to unlock vault.' });
+      console.error('Public view error:', error);
+      res.status(500).json({ error: 'Failed to retrieve vault content.' });
     }
   } else {
-    res.setHeader('Allow', ['POST']);
+    res.setHeader('Allow', ['GET']);
     res.status(405).end(`Method ${req.method} Not Allowed`);
   }
 }

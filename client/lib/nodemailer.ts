@@ -1,7 +1,6 @@
 // lib/nodemailer.ts
 import nodemailer from 'nodemailer';
 
-// Configure the email transporter using your Gmail account
 const transporter = nodemailer.createTransport({
   service: 'gmail',
   auth: {
@@ -26,23 +25,23 @@ export const sendVaultDeliveryEmail = async ({
   }
 
   const subject = `A secure vault named "${vaultName}" has been delivered to you`;
-  const pinataGatewayUrl = `https://gateway.pinata.cloud/ipfs/${cid}`;
+  // **MODIFIED**: This now links to your new viewer page
+  const viewVaultUrl = `${process.env.NEXTAUTH_URL}/view/${cid}`;
 
   const emailBody = `
     <p>Hello,</p>
     <p>A secure vault named <strong>${vaultName}</strong> has been shared with you.</p>
-    <p>You can access the encrypted content using the following link:</p>
-    <p><a href="${pinataGatewayUrl}">${pinataGatewayUrl}</a></p>
-    <p>To unlock the content, you must log in to the application with your email address.</p>
-    <p>Please keep this information safe and secure.</p>
+    <p>You can view the delivered content by clicking the link below:</p>
+    <p><a href="${viewVaultUrl}">${viewVaultUrl}</a></p>
+    <p>This link is unique to this vault. Please keep it safe.</p>
   `;
 
   try {
     const info = await transporter.sendMail({
-      from: `"Digital Afterlife" <${process.env.GMAIL_USER}>`, // Sender address
-      to: recipients.join(', '), // List of receivers
-      subject: subject, // Subject line
-      html: emailBody, // HTML body
+      from: `"Digital Afterlife" <${process.env.GMAIL_USER}>`,
+      to: recipients.join(', '),
+      subject: subject,
+      html: emailBody,
     });
 
     console.log('Email sent successfully:', info.messageId);

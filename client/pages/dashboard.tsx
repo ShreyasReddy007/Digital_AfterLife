@@ -26,9 +26,11 @@ interface RecipientVault {
 }
 
 interface UnlockedContent {
-  type: 'json' | 'file';
-  data: any;
-  fileName?: string;
+  message: string | null;
+  file: {
+    dataUrl: string;
+    fileName: string;
+  } | null;
 }
 
 export default function DashboardPage(): JSX.Element {
@@ -156,20 +158,34 @@ export default function DashboardPage(): JSX.Element {
     }
   };
 
+  // **MODIFIED**: This function now correctly renders the combined content
   const renderUnlockedContent = () => {
     if (!unlockedContent) return null;
-    if (unlockedContent.type === 'json') {
-      return <pre className="unlockedContent">{JSON.stringify(unlockedContent.data, null, 2)}</pre>;
-    }
-    if (unlockedContent.type === 'file') {
-      if (typeof unlockedContent.data === 'string' && unlockedContent.data.startsWith('data:image')) {
-        return <img src={unlockedContent.data} alt="Unlocked content" style={{ maxWidth: '100%', borderRadius: '0.5rem' }} />;
-      }
-      const blob = new Blob([JSON.stringify(unlockedContent.data, null, 2)], { type: 'application/octet-stream' });
-      const url = URL.createObjectURL(blob);
-      return <a href={url} download={unlockedContent.fileName || 'vault_content'} className="downloadLink">Download File</a>;
-    }
-    return null;
+
+    const { message, file } = unlockedContent;
+
+    return (
+      <div className="unlockedContentContainer">
+        {message && (
+          <div className="unlockedMessage">
+            <p className="unlockedContentLabel">Message:</p>
+            <p>{message}</p>
+          </div>
+        )}
+        {file && (
+          <div className="unlockedFile">
+            <p className="unlockedContentLabel">Attached File:</p>
+            {file.dataUrl.startsWith('data:image') ? (
+              <img src={file.dataUrl} alt={file.fileName} style={{ maxWidth: '100%', borderRadius: '0.5rem', marginTop: '0.5rem' }} />
+            ) : (
+              <a href={file.dataUrl} download={file.fileName} className="downloadLink">
+                Download {file.fileName}
+              </a>
+            )}
+          </div>
+        )}
+      </div>
+    );
   };
 
   const cssStyles = `
@@ -240,7 +256,10 @@ export default function DashboardPage(): JSX.Element {
     .modalCloseButton { background: none; border: none; color: white; font-size: 1.5rem; cursor: pointer; }
     .styledInput { width: 100%; padding: 0.75rem; background-color: rgba(15, 23, 42, 0.5); border: 1px solid #475569; border-radius: 0.5rem; color: white; margin: 1.5rem 0; }
     .errorMessage { color: #fcd34d; text-align: center; margin-top: 1rem; }
-    .unlockedContent {background: rgba(0, 0, 0, 0.3);padding: 1rem;border-radius: 0.5rem;margin-top: 1.5rem;white-space: pre-wrap;font-family: monospace;color: #00FF41;text-shadow:0 0 5px #00FF41,0 0 10px #00FF41,0 0 20px #00FF41,0 0 40px #00FF41;}
+    .unlockedContentContainer { margin-top: 1rem; }
+    .unlockedContentLabel { font-weight: 600; color: #e1e5ebff; margin-bottom: 0.5rem; }
+    .unlockedMessage { background-color: rgba(0,0,0,0.2); padding: 1rem; border-radius: 0.5rem; margin-bottom: 1rem; }
+    .unlockedMessage p:last-child {margin: 0; white-space: pre-wrap;font-family: monospace;color: #00FF41;text-shadow: 0 0 5px #00FF41, 0 0 10px #00FF41;}
     .downloadLink { display: block; margin-top: 1.5rem; padding: 1rem; background-color: #581c87; text-align: center; border-radius: 0.5rem; color: white; text-decoration: none; }
     .footer { text-align: center; padding-top: 2rem; margin-top: auto; }
     .toggleContainer { display: flex; align-items: center; justify-content: space-between; margin-top: 1rem; padding-top: 1rem; border-top: 1px solid #334155; }
@@ -283,7 +302,6 @@ export default function DashboardPage(): JSX.Element {
           </header>
           <nav className="navActions">
             <div className="navButton" onClick={() => router.push('/create')}>Create New Vault</div>
-            <div className="navButton" onClick={() => router.push('/upload')}>Upload File</div>
             <div className="navButton" onClick={() => router.push('/trigger')}>Set Trigger Date</div>
             <div className="navButton" onClick={() => router.push('/recovery-key')}>Set Recovery Key</div>
             <div className="navButton" onClick={() => router.push('/deliver')}>Deliver by Key</div>
@@ -365,7 +383,7 @@ export default function DashboardPage(): JSX.Element {
       {isModalOpen && (
         <div className="modalOverlay" onClick={closeModal}>
           <div className="modalContent" onClick={e => e.stopPropagation()}>
-            <div className="modalHeader"><h2 style={{margin:0}}>Vault Content</h2><button className="modalCloseButton" onClick={closeModal}>&times;</button></div>
+            <div className="modalHeader"><h2 style={{margin:0,color: "white"}}>Vault Content</h2><button className="modalCloseButton" onClick={closeModal}>&times;</button></div>
             <p style={{color: '#94a3b8', wordBreak: 'break-all'}}>CID: {selectedVault?.cid}</p>
             
             {unlockedContent ? (
