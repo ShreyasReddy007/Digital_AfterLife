@@ -3,6 +3,7 @@ import React, { JSX,useEffect } from 'react';
 import { useSession, signIn } from 'next-auth/react';
 import { useRouter } from 'next/router';
 import Head from 'next/head';
+import Image from 'next/image';
 
 export default function LoginPage(): JSX.Element {
   const { data: session, status } = useSession();
@@ -25,10 +26,27 @@ export default function LoginPage(): JSX.Element {
       width: 100%;
       background: linear-gradient(to bottom right, #0f172a, #000000, #3b0764);
       display: flex;
+      flex-direction: column;
       align-items: center;
       justify-content: center;
       padding: 1rem;
+      gap: 2rem;
       font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Oxygen', sans-serif;
+    }
+    .header-title-container {
+      display: flex;
+      align-items: center;
+      gap: 1rem;
+    }
+    .siteTitle {
+      font-size: 3.25rem;
+      font-weight: 800;
+      margin: 0;
+      background: linear-gradient(90deg, #a78bfa, #7c3aed);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      background-clip: text;
+      color: transparent;
     }
     .loginCard {
       width: 100%;
@@ -78,7 +96,7 @@ export default function LoginPage(): JSX.Element {
     return (
       <div className="pageContainer">
         <Head>
-            <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap" />
+            <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;800&display=swap" />
         </Head>
         <style dangerouslySetInnerHTML={{ __html: cssStyles }} />
         <p style={{ color: 'white' }}>Loading...</p>
@@ -89,13 +107,19 @@ export default function LoginPage(): JSX.Element {
   return (
     <>
         <Head>
-            <title>Login</title>
-            <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap" />
+            <title>Login - Digital Afterlife</title>
+            <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;800&display=swap" />
         </Head>
         <div className="pageContainer">
         <style dangerouslySetInnerHTML={{ __html: cssStyles }} />
+        
+        <header className="header-title-container">
+            <Image src="/Logo.png" alt="Digital Afterlife Logo" width={150} height={150} />
+            <h1 className="siteTitle">Digital Afterlife</h1>
+        </header>
+
         <div className="loginCard">
-            <h1 className="title">Welcome Back</h1>
+            <h1 className="title">Welcome</h1>
             <p className="subtitle">Sign in to manage your vaults.</p>
             <button className="googleButton" onClick={() => signIn('google')}>
             <svg xmlns="http://www.w3.org/2000/svg" height="24" viewBox="0 0 24 24" width="24">
