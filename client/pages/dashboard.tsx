@@ -14,6 +14,7 @@ interface Vault {
   created_at: string;
   triggerDate: string | null;
   inactivityTrigger: boolean;
+  recipientEmails: string[] | null;
 }
 
 // vaults shared
@@ -26,11 +27,11 @@ interface RecipientVault {
 }
 
 interface UnlockedContent {
-  message: string | null;
-  file: {
-    dataUrl: string;
-    fileName: string;
-  } | null;
+    data: {
+        message?: string;
+        fileData?: string;
+    };
+    fileName?: string;
 }
 
 export default function DashboardPage(): JSX.Element {
@@ -51,6 +52,16 @@ export default function DashboardPage(): JSX.Element {
 
   const [isDeleteModalOpen, setIsDeleteModalOpen] = useState<boolean>(false);
   const [isDeleting, setIsDeleting] = useState<boolean>(false);
+
+  // State for the Edit Modal
+  const [isEditModalOpen, setIsEditModalOpen] = useState<boolean>(false);
+  const [editingVault, setEditingVault] = useState<Vault | null>(null);
+  const [editName, setEditName] = useState('');
+  const [editEmails, setEditEmails] = useState('');
+  const [editMessage, setEditMessage] = useState('');
+  const [editFile, setEditFile] = useState<File | null>(null);
+  const [isEditing, setIsEditing] = useState(false);
+  const [isFetchingContent, setIsFetchingContent] = useState(false);
 
   const fetchAllData = async () => {
     setIsLoading(true);
@@ -75,6 +86,54 @@ export default function DashboardPage(): JSX.Element {
       fetchAllData();
     }
   }, [status]);
+
+  // Handler for opening the edit modal
+  const openEditModal = async (vault: Vault) => {
+    setEditingVault(vault);
+    setEditName(vault.name);
+    setEditEmails(vault.recipientEmails ? vault.recipientEmails.join(', ') : '');
+    setIsEditModalOpen(true);
+    setModalError('');
+    setIsFetchingContent(true);
+    try {
+      // Fetch current content for editing
+      const res = await axios.get(`/api/vaults/content?cid=${vault.cid}`);
+      setEditMessage(res.data.message || '');
+    } catch (err) {
+        setModalError('Could not load vault content for editing.');
+    } finally {
+        setIsFetchingContent(false);
+    }
+  };
+
+  // Handler for submitting the edit form
+  const handleEdit = async () => {
+    if (!editingVault) return;
+    setIsEditing(true);
+    setModalError('');
+
+    const formData = new FormData();
+    formData.append('vaultId', editingVault.id.toString());
+    formData.append('name', editName);
+    formData.append('recipientEmails', editEmails);
+    formData.append('message', editMessage);
+    if (editFile) {
+        formData.append('file', editFile);
+    }
+
+    try {
+      await axios.post('/api/vaults/edit', formData, {
+          headers: { 'Content-Type': 'multipart/form-data' },
+      });
+      setIsEditModalOpen(false);
+      setEditFile(null); // Reset file input
+      fetchAllData(); // Refresh data to show changes
+    } catch (err: any) {
+      setModalError(err.response?.data?.error || 'Failed to update vault.');
+    } finally {
+      setIsEditing(false);
+    }
+  };
 
   const handleInactivityToggle = async (vaultId: number, isEnabled: boolean) => {
     setVaults(currentVaults =>
@@ -140,7 +199,10 @@ export default function DashboardPage(): JSX.Element {
   const closeModal = () => {
     setIsModalOpen(false);
     setIsDeleteModalOpen(false);
+    setIsEditModalOpen(false);
     setSelectedVault(null);
+    setEditingVault(null);
+    setEditFile(null);
   };
 
   const handleDelete = async () => {
@@ -158,35 +220,49 @@ export default function DashboardPage(): JSX.Element {
     }
   };
 
-  //renders the combined content
-  const renderUnlockedContent = () => {
-    if (!unlockedContent) return null;
+    const renderUnlockedContent = () => {
+        if (!unlockedContent) return null;
 
-    const { message, file } = unlockedContent;
+        if (unlockedContent.data && (unlockedContent.data.message || unlockedContent.data.fileData)) {
+            const { message, fileData } = unlockedContent.data;
+            if (!message && !fileData) return <p>This vault appears to be empty.</p>;
 
-    return (
-      <div className="unlockedContentContainer">
-        {message && (
-          <div className="unlockedMessage">
-            <p className="unlockedContentLabel">Message:</p>
-            <p>{message}</p>
-          </div>
-        )}
-        {file && (
-          <div className="unlockedFile">
-            <p className="unlockedContentLabel">Attached File:</p>
-            {file.dataUrl.startsWith('data:image') ? (
-              <img src={file.dataUrl} alt={file.fileName} style={{ maxWidth: '100%', borderRadius: '0.5rem', marginTop: '0.5rem' }} />
-            ) : (
-              <a href={file.dataUrl} download={file.fileName} className="downloadLink">
-                Download {file.fileName}
-              </a>
-            )}
-          </div>
-        )}
-      </div>
-    );
-  };
+            return (
+                <div>
+                    {message && (
+                        <div>
+                            <p style={{ fontWeight: '600', color: 'white', marginTop: 0, marginBottom: '0.5rem' }}>Message:</p>
+                            <pre className="unlockedContent">{message}</pre>
+                        </div>
+                    )}
+                    {fileData && (
+                        <div style={{ marginTop: message ? '1.5rem' : '0' }}>
+                            <p style={{ fontWeight: '600', color: 'white', marginTop: 0, marginBottom: '0.5rem' }}>Attachment:</p>
+                            {fileData.startsWith('data:image') ? (
+                                <img src={fileData} alt="Unlocked content" style={{ maxWidth: '100%', borderRadius: '0.5rem' }} />
+                            ) : (
+                                <a href={fileData} download={unlockedContent.fileName || 'vault_attachment'} className="downloadLink">
+                                    Download {unlockedContent.fileName || 'File'}
+                                </a>
+                            )}
+                        </div>
+                    )}
+                </div>
+            );
+        }
+        
+        const oldFormatMessage = (unlockedContent as any).message;
+        if (typeof oldFormatMessage === 'string') {
+            return (
+                 <div>
+                    <p style={{ fontWeight: '600', color: 'white', marginTop: 0, marginBottom: '0.5rem' }}>Message:</p>
+                    <pre className="unlockedContent">{oldFormatMessage}</pre>
+                </div>
+            );
+        }
+
+        return <p>Unsupported content type or the vault is empty.</p>;
+    };
 
   const cssStyles = `
     html, body {
@@ -248,18 +324,17 @@ export default function DashboardPage(): JSX.Element {
     .vaultDate { font-size: 0.75rem; color: #94a3b8; margin-top: 1rem; margin-bottom: 0.5rem; }
     .triggerInfo { font-size: 0.875rem; color: #a5b4fc; margin-top: 1rem; padding: 0.5rem; background-color: rgba(71, 85, 105, 0.2); border-radius: 0.25rem; text-align: center; }
     .vaultActions { display: flex; gap: 0.5rem; margin-top: 1.5rem; }
-    .unlockButton { flex-grow: 1; padding: 0.5rem 1rem; border-radius: 0.5rem; border: none; cursor: pointer; font-weight: 500; background: linear-gradient(to right, #581c87, #9333ea); color: white; }
-    .deleteButton { padding: 0.5rem 1rem; border-radius: 0.5rem; border: none; cursor: pointer; font-weight: 500; background-color: #be123c; color: white; }
+    .actionButton { flex-grow: 1; padding: 0.5rem 1rem; border-radius: 0.5rem; border: none; cursor: pointer; font-weight: 500; }
+    .unlockButton { background: linear-gradient(to right, #581c87, #9333ea); color: white; }
+    .editButton { background-color: #475569; color: white; }
+    .deleteButton { background-color: #be123c; color: white; }
     .modalOverlay { position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.7); backdrop-filter: blur(5px); display: flex; align-items: center; justify-content: center; z-index: 1000; }
-    .modalContent { background: #1a1a2e; border: 1px solid #475569; border-radius: 1rem; padding: 2rem; width: 90%; max-width: 500px; }
+    .modalContent { background: #1a1a2e; border: 1px solid #475569; border-radius: 1rem; padding: 2rem; width: 90%; max-width: 500px; max-height: 90vh; overflow-y: auto; }
     .modalHeader { display: flex; justify-content: space-between; align-items: center; }
     .modalCloseButton { background: none; border: none; color: white; font-size: 1.5rem; cursor: pointer; }
-    .styledInput { width: 100%; padding: 0.75rem; background-color: rgba(15, 23, 42, 0.5); border: 1px solid #475569; border-radius: 0.5rem; color: white; margin: 1.5rem 0; }
+    .styledInput { width: 100%; padding: 0.75rem; background-color: rgba(15, 23, 42, 0.5); border: 1px solid #475569; border-radius: 0.5rem; color: white; margin-top: 1rem; }
     .errorMessage { color: #fcd34d; text-align: center; margin-top: 1rem; }
-    .unlockedContentContainer { margin-top: 1rem; }
-    .unlockedContentLabel { font-weight: 600; color: #e1e5ebff; margin-bottom: 0.5rem; }
-    .unlockedMessage { background-color: rgba(0,0,0,0.2); padding: 1rem; border-radius: 0.5rem; margin-bottom: 1rem; }
-    .unlockedMessage p:last-child {margin: 0; white-space: pre-wrap;font-family: monospace;color: #00FF41;text-shadow: 0 0 5px #00FF41, 0 0 10px #00FF41;}
+    .unlockedContent {background: rgba(0, 0, 0, 0.3);padding: 1rem;border-radius: 0.5rem;white-space: pre-wrap;font-family: monospace;color: #00FF41;text-shadow:0 0 5px #00FF41,0 0 10px #00FF41,0 0 20px #00FF41,0 0 40px #00FF41;}
     .downloadLink { display: block; margin-top: 1.5rem; padding: 1rem; background-color: #581c87; text-align: center; border-radius: 0.5rem; color: white; text-decoration: none; }
     .footer { text-align: center; padding-top: 2rem; margin-top: auto; }
     .toggleContainer { display: flex; align-items: center; justify-content: space-between; margin-top: 1rem; padding-top: 1rem; border-top: 1px solid #334155; }
@@ -270,13 +345,16 @@ export default function DashboardPage(): JSX.Element {
     .slider:before { position: absolute; content: ""; height: 16px; width: 16px; left: 4px; bottom: 4px; background-color: white; transition: .4s; border-radius: 50%; }
     input:checked + .slider { background-color: #9333ea; }
     input:checked + .slider:before { transform: translateX(16px); }
+    .fileInputLabel { display: flex; align-items: center; justify-content: center; width: 100%; height: 60px; background-color: rgba(15, 23, 42, 0.5); border: 2px dashed #475569; border-radius: 0.5rem; color: #94a3b8; cursor: pointer; transition: all 0.3s; margin-top: 0; }
+    .fileInputLabel:hover { border-color: #a855f7; color: white; }
+    .fileInputLabel span { text-align: center; max-width: 90%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   `;
 
   if (status === 'loading') {
     return (
         <div className="pageContainer">
             <Head>
-                <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" />
+                <title>Digital Afterlife</title>
             </Head>
             <style dangerouslySetInnerHTML={{ __html: cssStyles }} />
             <p>Loading session...</p>
@@ -288,14 +366,13 @@ export default function DashboardPage(): JSX.Element {
     <>
       <Head>
           <title>Digital Afterlife</title>
-          <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" />
       </Head>
       <div className="pageContainer">
         <style dangerouslySetInnerHTML={{ __html: cssStyles }} />
         <div className="dashboardContent">
           <header className="header">
             <div className="header-title-container">
-              <Image src="/Logo.png" alt="Digital Afterlife Logo" width={150} height={150} />
+              <Image src="/Logo.png" alt="Digital Afterlife Logo" width={150} height={150} priority={true} />
               <h1 className="siteTitle">Digital Afterlife</h1>
             </div>
             <button className="signOutButton" onClick={() => signOut()}>Sign Out</button>
@@ -344,8 +421,9 @@ export default function DashboardPage(): JSX.Element {
                       </label>
                     </div>
                     <div className="vaultActions">
-                      <button className="unlockButton" onClick={() => openUnlockModal(vault)}>Unlock</button>
-                      <button className="deleteButton" onClick={() => openDeleteModal(vault)}>Delete</button>
+                      <button className="actionButton unlockButton" onClick={() => openUnlockModal(vault)}>Unlock</button>
+                      <button className="actionButton editButton" onClick={() => openEditModal(vault)}>Edit</button>
+                      <button className="actionButton deleteButton" onClick={() => openDeleteModal(vault)}>Delete</button>
                     </div>
                   </div>
                 </div>))}
@@ -363,7 +441,7 @@ export default function DashboardPage(): JSX.Element {
                       <p className="vaultDate">Delivered: {new Date(vault.created_at).toLocaleString()}</p>
                     </div>
                     <div className="vaultActions">
-                      <button className="unlockButton" onClick={() => openUnlockModal(vault)}>View Content</button>
+                      <button className="actionButton unlockButton" onClick={() => openUnlockModal(vault)}>View Content</button>
                     </div>
                   </div>))}
                 </div>
@@ -375,46 +453,93 @@ export default function DashboardPage(): JSX.Element {
           <p style={{ fontSize: '0.8rem', color: '#94a3b8', maxWidth: '650px', margin: '0 auto 1rem', lineHeight: '1.6' }}>
            Disclaimer : By enabling the inactivity trigger for a vault, you agree that its contents will be delivered to the recipients if your account remains inactive for a period of 6 months. This action is irreversible.
           </p>
-          <p style={{ color: '#64748b', fontSize: '0.75rem' }}>
+          <p style={{ color: '#6474b8', fontSize: '0.75rem' }}>
             &copy; {new Date().getFullYear()} P.Shreyas Reddy. All Rights Reserved.
           </p>
         </footer>
       </div>
-      {isModalOpen && (
-        <div className="modalOverlay" onClick={closeModal}>
-          <div className="modalContent" onClick={e => e.stopPropagation()}>
-            <div className="modalHeader"><h2 style={{margin:0,color: "white"}}>Vault Content</h2><button className="modalCloseButton" onClick={closeModal}>&times;</button></div>
-            <p style={{color: '#94a3b8', wordBreak: 'break-all'}}>CID: {selectedVault?.cid}</p>
-            
-            {unlockedContent ? (
-              <div>{renderUnlockedContent()}</div>
-            ) : isUnlocking ? (
-              <p>Unlocking...</p>
-            ) : (selectedVault && 'ownerName' in selectedVault) ? (
-              <p>Verifying access and retrieving content...</p>
-            ) : (
-              <>
-                <input type="password" className="styledInput" placeholder="Enter vault password" value={password} onChange={e => setPassword(e.target.value)} disabled={isUnlocking} />
-                <button className="unlockButton" style={{width: '100%'}} onClick={handleOwnerUnlock} disabled={isUnlocking}>{isUnlocking ? 'Unlocking...' : 'Unlock'}</button>
-              </>
-            )}
-            {modalError && <p className="errorMessage">{modalError}</p>}
-          </div>
-        </div>
-      )}
+
+      {/* Unlock Modal */}
+        {isModalOpen && (
+            <div className="modalOverlay" onClick={closeModal}>
+                <div className="modalContent" onClick={e => e.stopPropagation()}>
+                    <div className="modalHeader"><h2 style={{ margin: 0,color:'white' }}>Vault Content</h2><button className="modalCloseButton" onClick={closeModal}>&times;</button></div>
+                    <p style={{ color: '#94a3b8', wordBreak: 'break-all' }}>CID: {selectedVault?.cid}</p>
+                    
+                    {unlockedContent ? (
+                        <div>{renderUnlockedContent()}</div>
+                    ) : isUnlocking ? (
+                        <p>Unlocking...</p>
+                    ) : (selectedVault && 'ownerName' in selectedVault) ? (
+                        <p>Verifying access and retrieving content...</p>
+                    ) : (
+                        <>
+                            <input type="password" className="styledInput" placeholder="Enter vault password" value={password} onChange={e => setPassword(e.target.value)} disabled={isUnlocking} />
+                            <button className="actionButton unlockButton" style={{ width: '100%', marginTop: '1rem' }} onClick={handleOwnerUnlock} disabled={isUnlocking}>{isUnlocking ? 'Unlocking...' : 'Unlock'}</button>
+                        </>
+                    )}
+                    {modalError && <p className="errorMessage">{modalError}</p>}
+                </div>
+            </div>
+        )}
+      
+      {/* Delete Modal */}
       {isDeleteModalOpen && (
         <div className="modalOverlay" onClick={closeModal}>
-          <div className="modalContent" onClick={e => e.stopPropagation()}>
-            <div className="modalHeader"><h2 style={{margin:0}}>Delete Vault</h2><button className="modalCloseButton" onClick={closeModal}>&times;</button></div>
+            <div className="modalContent" onClick={e => e.stopPropagation()}>
+            <div className="modalHeader"><h2 style={{margin:0,color:'white'}}>Delete Vault</h2><button className="modalCloseButton" onClick={closeModal}>&times;</button></div>
             <p style={{color: '#94a3b8', marginTop: '1rem'}}>Are you sure you want to permanently delete "{selectedVault?.name}"? This action cannot be undone.</p>
             <div style={{display: 'flex', gap: '1rem', marginTop: '1.5rem'}}>
-              <button className="unlockButton" style={{backgroundColor: '#475569', flexGrow: 1}} onClick={closeModal}>Cancel</button>
-              <button className="deleteButton" style={{flexGrow: 1}} onClick={handleDelete} disabled={isDeleting}>{isDeleting ? 'Deleting...' : 'Delete'}</button>
+              <button className="actionButton" style={{backgroundColor: '#475569', flexGrow: 1}} onClick={closeModal}>Cancel</button>
+              <button className="actionButton deleteButton" style={{flexGrow: 1}} onClick={handleDelete} disabled={isDeleting}>{isDeleting ? 'Deleting...' : 'Delete'}</button>
             </div>
             {modalError && <p className="errorMessage">{modalError}</p>}
           </div>
         </div>
       )}
+
+      {/* Edit Modal */}
+        {isEditModalOpen && (
+            <div className="modalOverlay" onClick={closeModal}>
+                <div className="modalContent" onClick={e => e.stopPropagation()}>
+                    <div className="modalHeader"><h2 style={{ margin: 0,color:'white'}}>Edit Vault</h2><button className="modalCloseButton" onClick={closeModal}>&times;</button></div>
+                    {isFetchingContent ? <p style={{ color:'white',textAlign: 'center', marginTop: '2rem' }}>Loading current content...</p> : (
+                        <>
+                            <div style={{ marginTop: '1.5rem', display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+                                <div>
+                                    <label style={{ fontSize: '0.875rem', color: '#94a3b8' }}>Vault Name</label>
+                                    <input type="text" className="styledInput" style={{marginTop: '0.5rem'}} value={editName} onChange={(e) => setEditName(e.target.value)} />
+                                </div>
+                                <div>
+                                    <label style={{ fontSize: '0.875rem', color: '#94a3b8' }}>Message</label>
+                                    <textarea rows={4} className="styledInput" style={{ marginTop: '0.5rem', resize: 'vertical' }} value={editMessage} onChange={(e) => setEditMessage(e.target.value)} />
+                                </div>
+                                <div>
+                                    <label style={{ fontSize: '0.875rem', color: '#94a3b8' }}>Recipient Emails (comma-separated)</label>
+                                    <input type="text" className="styledInput" style={{marginTop: '0.5rem'}} value={editEmails} onChange={(e) => setEditEmails(e.target.value)} />
+                                </div>
+                                <div>
+                                    <label style={{ fontSize: '0.875rem', color: '#94a3b8' }}>Replace Attachment (Optional)</label>
+                                    <label htmlFor="edit-file-upload" className="fileInputLabel">
+                                        <span>{editFile ? editFile.name : 'Click to select a new file'}</span>
+                                    </label>
+                                    <input id="edit-file-upload" type="file" onChange={(e) => setEditFile(e.target.files ? e.target.files[0] : null)} style={{ display: 'none' }} />
+                                </div>
+                            </div>
+                            <div style={{ display: 'flex', gap: '1rem', marginTop: '1.5rem' }}>
+                                <button className="actionButton" style={{ backgroundColor: '#475569', flexGrow: 1 }} onClick={closeModal}>Cancel</button>
+                                <button className="actionButton unlockButton" style={{ flexGrow: 1 }} onClick={handleEdit} disabled={isEditing}>
+                                    {isEditing ? 'Saving...' : 'Save Changes'}
+                                </button>
+                            </div>
+                        </>
+                    )}
+                    {modalError && <p className="errorMessage">{modalError}</p>}
+                </div>
+            </div>
+        )}
+
     </>
   );
 }
+
