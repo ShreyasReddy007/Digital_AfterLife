@@ -1,9 +1,22 @@
-// File: pages/api/auth/[...nextauth].ts
-
-import NextAuth, { NextAuthOptions } from "next-auth";
+// pages/api/auth/[...nextauth].ts
+import NextAuth, { DefaultSession, NextAuthOptions } from "next-auth";
 import GoogleProvider from "next-auth/providers/google";
 import PostgresAdapter from "@auth/pg-adapter";
 import { Pool } from "pg";
+
+declare module "next-auth" {
+  interface Session {
+    user?: {
+      id?: string;
+      hasCompletedOnboarding?: boolean;
+    } & DefaultSession["user"];
+  }
+
+  interface User {
+    hasCompletedOnboarding?: boolean;
+  }
+}
+
 
 const pool = new Pool({
   connectionString: process.env.DATABASE_URL,
@@ -22,34 +35,20 @@ export const authOptions: NextAuthOptions = {
     strategy: "jwt",
   },
   callbacks: {
-    async jwt({ token, user }) {
-      // This callback runs on sign-in and adds the user ID to the token.
-      if (user) {
-        token.id = user.id;
-      }
-      return token;
-    },
     async session({ session, token }) {
-      // This callback runs on every session check.
-      // **FIXED**: The user ID is in `token.sub` (subject), not `token.id`.
       if (token.sub && session.user) {
         session.user.id = token.sub;
-
+        
         try {
-          const userId = session.user.id;
-          
-          // This query should now work correctly with the valid user ID.
-          await pool.query(
-            'UPDATE users SET "lastSeen" = NOW() WHERE id = $1',
-            [userId]
+          const { rows } = await pool.query(
+            'SELECT "hasCompletedOnboarding" FROM users WHERE id = $1',
+            [token.sub]
           );
-
+          if (rows[0]) {
+            session.user.hasCompletedOnboarding = rows[0].hasCompletedOnboarding;
+          }
         } catch (error) {
-          console.error("!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!");
-          console.error("!!!    FAILED TO UPDATE lastSeen     !!!");
-          console.error("!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!");
-          console.error("User ID causing error:", session.user.id);
-          console.error("Detailed Error:", error);
+          console.error("Failed to fetch onboarding status:", error);
         }
       }
       return session;
@@ -61,3 +60,4 @@ export const authOptions: NextAuthOptions = {
 };
 
 export default NextAuth(authOptions);
+

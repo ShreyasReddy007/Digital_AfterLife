@@ -5,36 +5,74 @@ import axios from 'axios';
 import Head from 'next/head';
 import Image from 'next/image';
 
-// Interface for vaults created by the user
-interface Vault {
-  id: number;
-  cid: string;
-  name: string;
-  created_at: string;
-  triggerDate: string | null;
-  inactivityTrigger: boolean;
-  recipientEmails: string[] | null;
-}
+// Onboarding Tour Component
+const OnboardingTour = ({ onClose }: { onClose: () => void }) => {
+    const [step, setStep] = useState(0);
+    const tourSteps = [
+        { title: "Welcome to Digital Afterlife", content: "This brief tour will guide you through the core features of the platform. Your digital legacy starts here.", icon: "👋" },
+        { title: "Create Your Vaults", content: "A vault is a secure, encrypted container for your most important messages and files. You can create as many as you need from the dashboard.", icon: "🔒" },
+        { title: "Set Delivery Triggers", content: "Choose how your vaults are delivered: on a specific future date, or after a period of account inactivity. You have full control.", icon: "⏰" },
+        { title: "The Emergency Recovery Key", content: "Generate a one-time recovery key and give it to a trusted person. They can use it to trigger immediate delivery of all your vaults in an emergency.", icon: "🔑" },
+        { title: "You're All Set!", content: "You're now ready to start securing your digital legacy. If you have any questions, you can always refer to our documentation.", icon: "🚀" }
+    ];
 
-// A type for vaults shared with the user
-interface RecipientVault {
-  id: number;
-  cid: string;
-  name: string;
-  created_at: string;
-  ownerName: string;
-}
+    const current = tourSteps[step];
+    const isLastStep = step === tourSteps.length - 1;
 
-interface UnlockedContent {
-    data: {
-        message?: string;
-        fileData?: string;
+    const handleNext = () => {
+        if (!isLastStep) {
+            setStep(step + 1);
+        } else {
+            onClose();
+        }
     };
-    fileName?: string;
+
+    return (
+        <div className="modalOverlay" style={{ zIndex: 2000 }}>
+            <div className="modalContent" style={{ maxWidth: '450px', textAlign: 'center' }}>
+                <div style={{ fontSize: '3rem', marginBottom: '1rem' }}>{current.icon}</div>
+                <h2 style={{ margin: '0 0 1rem 0', color: 'white', fontSize: '1.5rem' }}>{current.title}</h2>
+                <p style={{ color: '#94a3b8', lineHeight: '1.6' }}>{current.content}</p>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: '2rem' }}>
+                    {step > 0 && (<button className="actionButton editButton" onClick={() => setStep(step - 1)}>Previous</button>)}
+                    <div style={{ flexGrow: 1, marginLeft: step > 0 ? '1rem' : '0' }}>
+                       <button className="actionButton unlockButton" onClick={handleNext}>
+                           {isLastStep ? "Finish Tour" : "Next"}
+                       </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    );
+};
+
+// created vault
+interface Vault 
+{ 
+  id: number; 
+  cid: string; 
+  name: string; 
+  created_at: string; 
+  triggerDate: string | null; 
+  inactivityTrigger: boolean; 
+  recipientEmails: string[] | null; 
 }
+
+// shared vaults
+interface RecipientVault
+ { 
+  id: number; 
+  cid: string; 
+  name: string; 
+  created_at: string; 
+  ownerName: string; 
+
+}
+interface UnlockedContent
+{ data: { message?: string; fileData?: string; }; fileName?: string; }
 
 export default function DashboardPage(): JSX.Element {
-  const { data: session, status } = useSession({ required: true, onUnauthenticated() { router.push('/login') }});
+  const { data: session, status, update } = useSession({ required: true, onUnauthenticated() { router.push('/login') }});
   const router = useRouter();
   
   const [vaults, setVaults] = useState<Vault[]>([]);
@@ -42,20 +80,18 @@ export default function DashboardPage(): JSX.Element {
   const [isLoading, setIsLoading] = useState<boolean>(true);
   const [error, setError] = useState<string>('');
 
+  const [showTour, setShowTour] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
   const [sortBy, setSortBy] = useState('newest');
   const [filterBy, setFilterBy] = useState('all');
-
   const [isModalOpen, setIsModalOpen] = useState<boolean>(false);
   const [selectedVault, setSelectedVault] = useState<Vault | RecipientVault | null>(null);
   const [password, setPassword] = useState<string>('');
   const [modalError, setModalError] = useState<string>('');
   const [unlockedContent, setUnlockedContent] = useState<UnlockedContent | null>(null);
   const [isUnlocking, setIsUnlocking] = useState<boolean>(false);
-
   const [isDeleteModalOpen, setIsDeleteModalOpen] = useState<boolean>(false);
   const [isDeleting, setIsDeleting] = useState<boolean>(false);
-
   const [isEditModalOpen, setIsEditModalOpen] = useState<boolean>(false);
   const [editingVault, setEditingVault] = useState<Vault | null>(null);
   const [editName, setEditName] = useState('');
@@ -77,7 +113,6 @@ export default function DashboardPage(): JSX.Element {
       setRecipientVaults(recipientVaultsRes.data);
     } catch (err) {
       setError('Failed to fetch vaults.');
-      console.error(err);
     } finally {
       setIsLoading(false);
     }
@@ -86,28 +121,38 @@ export default function DashboardPage(): JSX.Element {
   useEffect(() => {
     if (status === 'authenticated') {
       fetchAllData();
+      if (session?.user && !session.user.hasCompletedOnboarding) {
+        setShowTour(true);
+      }
     }
-  }, [status]);
+  }, [status, session]);
+
+  const handleCloseTour = async () => {
+      setShowTour(false);
+      try {
+          await axios.post('/api/user/complete-onboarding');
+          update({ hasCompletedOnboarding: true });
+      } catch (err) {
+          console.error("Failed to mark onboarding as complete.", err);
+      }
+  };
 
   const filteredAndSortedVaults = useMemo(() => {
     let processedVaults = [...vaults];
     if (searchTerm) {
-        processedVaults = processedVaults.filter(vault =>
-            vault.name.toLowerCase().includes(searchTerm.toLowerCase())
-        );
+        processedVaults = processedVaults.filter(v => v.name.toLowerCase().includes(searchTerm.toLowerCase()));
     }
     if (filterBy === 'date') {
-        processedVaults = processedVaults.filter(vault => vault.triggerDate);
+        processedVaults = processedVaults.filter(v => v.triggerDate);
     } else if (filterBy === 'inactivity') {
-        processedVaults = processedVaults.filter(vault => vault.inactivityTrigger);
+        processedVaults = processedVaults.filter(v => v.inactivityTrigger);
     }
-    if (sortBy === 'newest') {
-        processedVaults.sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
-    } else if (sortBy === 'oldest') {
-        processedVaults.sort((a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime());
-    } else if (sortBy === 'name') {
-        processedVaults.sort((a, b) => a.name.localeCompare(b.name));
-    }
+    processedVaults.sort((a, b) => {
+        if (sortBy === 'newest') return new Date(b.created_at).getTime() - new Date(a.created_at).getTime();
+        if (sortBy === 'oldest') return new Date(a.created_at).getTime() - new Date(b.created_at).getTime();
+        if (sortBy === 'name') return a.name.localeCompare(b.name);
+        return 0;
+    });
     return processedVaults;
   }, [vaults, searchTerm, sortBy, filterBy]);
 
@@ -122,7 +167,7 @@ export default function DashboardPage(): JSX.Element {
         const res = await axios.get(`/api/vaults/content?cid=${vault.cid}`);
         setEditMessage(res.data.message || '');
     } catch (err) {
-        setModalError('Could not load vault content for editing.');
+        setModalError('Could not load vault content.');
     } finally {
         setIsFetchingContent(false);
     }
@@ -137,13 +182,9 @@ export default function DashboardPage(): JSX.Element {
     formData.append('name', editName);
     formData.append('recipientEmails', editEmails);
     formData.append('message', editMessage);
-    if (editFile) {
-        formData.append('file', editFile);
-    }
+    if (editFile) formData.append('file', editFile);
     try {
-        await axios.post('/api/vaults/edit', formData, {
-            headers: { 'Content-Type': 'multipart/form-data' },
-        });
+        await axios.post('/api/vaults/edit', formData, { headers: { 'Content-Type': 'multipart/form-data' } });
         setIsEditModalOpen(false);
         setEditFile(null);
         fetchAllData();
@@ -155,20 +196,12 @@ export default function DashboardPage(): JSX.Element {
   };
 
   const handleInactivityToggle = async (vaultId: number, isEnabled: boolean) => {
-    setVaults(currentVaults =>
-        currentVaults.map(v =>
-            v.id === vaultId ? { ...v, inactivityTrigger: isEnabled } : v
-        )
-    );
+    setVaults(vaults.map(v => v.id === vaultId ? { ...v, inactivityTrigger: isEnabled } : v));
     try {
         await axios.post('/api/vaults/toggle-inactivity', { vaultId, isEnabled });
     } catch (err) {
-        setError('Failed to update trigger. Please try again.');
-        setVaults(currentVaults =>
-            currentVaults.map(v =>
-                v.id === vaultId ? { ...v, inactivityTrigger: !isEnabled } : v
-            )
-        );
+        setError('Failed to update trigger.');
+        setVaults(vaults.map(v => v.id === vaultId ? { ...v, inactivityTrigger: !isEnabled } : v));
     }
   };
 
@@ -205,9 +238,7 @@ export default function DashboardPage(): JSX.Element {
     setPassword('');
     setModalError('');
     setUnlockedContent(null);
-    if ('ownerName' in vault) {
-        handleRecipientUnlock(vault);
-    }
+    if ('ownerName' in vault) handleRecipientUnlock(vault);
   };
 
   const openDeleteModal = (vault: Vault) => {
@@ -332,6 +363,7 @@ export default function DashboardPage(): JSX.Element {
 
   return (
     <>
+      {showTour && <OnboardingTour onClose={handleCloseTour} />}
       <Head>
           <title>Digital Afterlife</title>
       </Head>
