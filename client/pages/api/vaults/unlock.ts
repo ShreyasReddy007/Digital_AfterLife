@@ -31,7 +31,7 @@ export default async function handler(
     }
 
     const { rows } = await pool.query(
-      'SELECT "passwordHash", "originalFilename", "mimeType" FROM vaults WHERE cid = $1 AND "userId" = $2',
+      'SELECT "passwordHash" FROM vaults WHERE cid = $1 AND "userId" = $2',
       [cid, session.user.id]
     );
 
@@ -45,27 +45,27 @@ export default async function handler(
       return res.status(401).json({ error: 'Invalid password.' });
     }
 
-    // Fetch the master JSON manifest
     const manifestRes = await axios.get(`https://gateway.pinata.cloud/ipfs/${cid}`);
     const manifest = manifestRes.data;
 
-    let fileData = null;
-    // If the manifest has a fileCid, fetch the file content
-    if (manifest.fileCid) {
-      const fileRes = await axios.get(`https://gateway.pinata.cloud/ipfs/${manifest.fileCid}`, {
+    const unlockedFiles = [];
+    if (manifest.files && Array.isArray(manifest.files)) {
+      for (const fileInfo of manifest.files) {
+        const fileRes = await axios.get(`https://gateway.pinata.cloud/ipfs/${fileInfo.cid}`, {
           responseType: 'stream',
-      });
-      // Convert the file stream to a base64 data URL
-      fileData = await streamToDataURL(fileRes.data, vault.mimeType);
+        });
+        const fileData = await streamToDataURL(fileRes.data, fileInfo.type);
+        unlockedFiles.push({
+          data: fileData,
+          name: fileInfo.name,
+          type: fileInfo.type,
+        });
+      }
     }
 
-    // Send the complete content object to the frontend
     res.status(200).json({
-      data: {
-        message: manifest.message,
-        fileData: fileData,
-      },
-      fileName: vault.originalFilename,
+      message: manifest.message,
+      files: unlockedFiles,
     });
 
   } catch (error) {
@@ -73,3 +73,4 @@ export default async function handler(
     res.status(500).json({ error: 'Failed to unlock vault.' });
   }
 }
+

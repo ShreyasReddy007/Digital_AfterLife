@@ -32,32 +32,37 @@ export default async function handler(
     }
 
     const { rows } = await pool.query(
-      `SELECT "originalFilename", "mimeType" FROM vaults WHERE cid = $1 AND $2 = ANY("recipientEmails") AND "deliveryStatus" = 'delivered'`,
+      `SELECT * FROM vaults WHERE cid = $1 AND $2 = ANY("recipientEmails") AND "deliveryStatus" = 'delivered'`,
       [cid, userEmail]
     );
 
     const vault = rows[0];
     if (!vault) {
-      return res.status(403).json({ error: 'Access denied. You are not a verified recipient of this triggered vault.' });
+      return res.status(403).json({ error: 'Access denied.' });
     }
     
     const manifestRes = await axios.get(`https://gateway.pinata.cloud/ipfs/${cid}`);
     const manifest = manifestRes.data;
 
-    let fileData = null;
-    if (manifest.fileCid) {
-        const fileRes = await axios.get(`https://gateway.pinata.cloud/ipfs/${manifest.fileCid}`, {
+    const unlockedFiles = [];
+    // If the manifest has a files array, process each file
+    if (manifest.files && Array.isArray(manifest.files)) {
+      for (const fileInfo of manifest.files) {
+        const fileRes = await axios.get(`https://gateway.pinata.cloud/ipfs/${fileInfo.cid}`, {
             responseType: 'stream',
         });
-        fileData = await streamToDataURL(fileRes.data, vault.mimeType);
+        const fileData = await streamToDataURL(fileRes.data, fileInfo.type);
+        unlockedFiles.push({
+          data: fileData,
+          name: fileInfo.name,
+          type: fileInfo.type,
+        });
+      }
     }
 
     res.status(200).json({
-      data: {
-        message: manifest.message,
-        fileData: fileData,
-      },
-      fileName: vault.originalFilename,
+      message: manifest.message,
+      files: unlockedFiles,
     });
 
   } catch (error) {
@@ -65,3 +70,4 @@ export default async function handler(
     res.status(500).json({ error: 'Failed to unlock vault.' });
   }
 }
+

@@ -11,12 +11,10 @@ declare module "next-auth" {
       hasCompletedOnboarding?: boolean;
     } & DefaultSession["user"];
   }
-
   interface User {
     hasCompletedOnboarding?: boolean;
   }
 }
-
 
 const pool = new Pool({
   connectionString: process.env.DATABASE_URL,
@@ -28,6 +26,9 @@ export const authOptions: NextAuthOptions = {
     GoogleProvider({
       clientId: process.env.GOOGLE_CLIENT_ID!,
       clientSecret: process.env.GOOGLE_CLIENT_SECRET!,
+      httpOptions: {
+        timeout: 10000,
+      }
     }),
   ],
   secret: process.env.NEXTAUTH_SECRET,

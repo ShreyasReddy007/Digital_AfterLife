@@ -1,8 +1,8 @@
 // pages/api/vaults/public-view.ts
 import { NextApiRequest, NextApiResponse } from 'next';
-import { Pool } from 'pg';
 import axios from 'axios';
-import { streamToBuffer } from '../../../lib/utils';
+import { streamToDataURL } from '../../../lib/utils';
+import { Pool } from 'pg';
 
 const pool = new Pool({
   connectionString: process.env.DATABASE_URL,
@@ -12,52 +12,40 @@ export default async function handler(
   req: NextApiRequest,
   res: NextApiResponse
 ) {
-  if (req.method === 'GET') {
-    try {
-      const { cid } = req.query;
+  if (req.method !== 'GET') {
+    return res.status(405).json({ error: 'Method Not Allowed' });
+  }
 
-      if (!cid || typeof cid !== 'string') {
-        return res.status(400).json({ error: 'A valid CID is required.' });
-      }
+  const { cid } = req.query;
+  if (!cid || typeof cid !== 'string') {
+    return res.status(400).json({ error: 'CID is required.' });
+  }
 
-      const { rows } = await pool.query(
-        'SELECT "mimeType", "originalFilename" FROM vaults WHERE cid = $1',
-        [cid]
-      );
-      const vaultMeta = rows[0];
+  try {
+    const manifestRes = await axios.get(`https://gateway.pinata.cloud/ipfs/${cid}`);
+    const manifest = manifestRes.data;
 
-      if (!vaultMeta) {
-        return res.status(404).json({ error: 'Vault not found.' });
-      }
-
-      const jsonResponse = await axios.get(`https://gateway.pinata.cloud/ipfs/${cid}`);
-      const vaultContent = jsonResponse.data;
-
-      //fetch the file and convert it
-      if (vaultContent.fileCid) {
-        const fileResponse = await axios.get(`https://gateway.pinata.cloud/ipfs/${vaultContent.fileCid}`, { responseType: 'stream' });
-        const buffer = await streamToBuffer(fileResponse.data);
-        const base64Data = buffer.toString('base64');
-        const dataUrl = `data:${vaultMeta.mimeType};base64,${base64Data}`;
-        
-        return res.status(200).json({ 
-            message: vaultContent.message || null,
-            file: {
-                dataUrl: dataUrl,
-                fileName: vaultMeta.originalFilename
-            }
+    const unlockedFiles = [];
+    if (manifest.files && Array.isArray(manifest.files)) {
+      for (const fileInfo of manifest.files) {
+        const fileRes = await axios.get(`https://gateway.pinata.cloud/ipfs/${fileInfo.cid}`, {
+          responseType: 'stream',
+        });
+        const fileData = await streamToDataURL(fileRes.data, fileInfo.type);
+        unlockedFiles.push({
+          data: fileData,
+          name: fileInfo.name,
+          type: fileInfo.type,
         });
       }
-      
-      // If there's only a message
-      res.status(200).json({ message: vaultContent.message || null, file: null });
-
-    } catch (error) {
-      console.error('Public view error:', error);
-      res.status(500).json({ error: 'Failed to retrieve vault content.' });
     }
-  } else {
-    res.setHeader('Allow', ['GET']);
-    res.status(405).end(`Method ${req.method} Not Allowed`);
+
+    res.status(200).json({
+      message: manifest.message,
+      files: unlockedFiles,
+    });
+  } catch (error) {
+    console.error('Public view error:', error);
+    res.status(500).json({ error: 'Failed to retrieve vault data.' });
   }
 }

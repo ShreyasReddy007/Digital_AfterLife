@@ -5,48 +5,7 @@ import axios from 'axios';
 import Head from 'next/head';
 import Image from 'next/image';
 
-// Onboarding Tour Component
-const OnboardingTour = ({ onClose }: { onClose: () => void }) => {
-    const [step, setStep] = useState(0);
-    const tourSteps = [
-        { title: "Welcome to Digital Afterlife", content: "This brief tour will guide you through the core features of the platform. Your digital legacy starts here.", icon: "👋" },
-        { title: "Create Your Vaults", content: "A vault is a secure, encrypted container for your most important messages and files. You can create as many as you need from the dashboard.", icon: "🔒" },
-        { title: "Set Delivery Triggers", content: "Choose how your vaults are delivered: on a specific future date, or after a period of account inactivity. You have full control.", icon: "⏰" },
-        { title: "The Emergency Recovery Key", content: "Generate a one-time recovery key and give it to a trusted person. They can use it to trigger immediate delivery of all your vaults in an emergency.", icon: "🔑" },
-        { title: "You're All Set!", content: "You're now ready to start securing your digital legacy. If you have any questions, you can always refer to our documentation.", icon: "🚀" }
-    ];
-
-    const current = tourSteps[step];
-    const isLastStep = step === tourSteps.length - 1;
-
-    const handleNext = () => {
-        if (!isLastStep) {
-            setStep(step + 1);
-        } else {
-            onClose();
-        }
-    };
-
-    return (
-        <div className="modalOverlay" style={{ zIndex: 2000 }}>
-            <div className="modalContent" style={{ maxWidth: '450px', textAlign: 'center' }}>
-                <div style={{ fontSize: '3rem', marginBottom: '1rem' }}>{current.icon}</div>
-                <h2 style={{ margin: '0 0 1rem 0', color: 'white', fontSize: '1.5rem' }}>{current.title}</h2>
-                <p style={{ color: '#94a3b8', lineHeight: '1.6' }}>{current.content}</p>
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: '2rem' }}>
-                    {step > 0 && (<button className="actionButton editButton" onClick={() => setStep(step - 1)}>Previous</button>)}
-                    <div style={{ flexGrow: 1, marginLeft: step > 0 ? '1rem' : '0' }}>
-                       <button className="actionButton unlockButton" onClick={handleNext}>
-                           {isLastStep ? "Finish Tour" : "Next"}
-                       </button>
-                    </div>
-                </div>
-            </div>
-        </div>
-    );
-};
-
-// created vault
+// Interfaces
 interface Vault 
 { 
   id: number; 
@@ -58,28 +17,37 @@ interface Vault
   recipientEmails: string[] | null; 
 }
 
-// shared vaults
-interface RecipientVault
- { 
+interface RecipientVault 
+{ 
   id: number; 
   cid: string; 
   name: string; 
   created_at: string; 
   ownerName: string; 
-
 }
-interface UnlockedContent
-{ data: { message?: string; fileData?: string; }; fileName?: string; }
+
+interface UnlockedFile 
+{ 
+  data: string; 
+  name: string; 
+  type: string; 
+}
+
+interface UnlockedContent 
+{ 
+  message?: string; 
+  files?: UnlockedFile[]; 
+}
 
 export default function DashboardPage(): JSX.Element {
   const { data: session, status, update } = useSession({ required: true, onUnauthenticated() { router.push('/login') }});
   const router = useRouter();
   
+  // State variables...
   const [vaults, setVaults] = useState<Vault[]>([]);
   const [recipientVaults, setRecipientVaults] = useState<RecipientVault[]>([]);
   const [isLoading, setIsLoading] = useState<boolean>(true);
   const [error, setError] = useState<string>('');
-
   const [showTour, setShowTour] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
   const [sortBy, setSortBy] = useState('newest');
@@ -101,6 +69,7 @@ export default function DashboardPage(): JSX.Element {
   const [isEditing, setIsEditing] = useState(false);
   const [isFetchingContent, setIsFetchingContent] = useState(false);
 
+  // Data fetching and side effects...
   const fetchAllData = async () => {
     setIsLoading(true);
     setError('');
@@ -127,7 +96,7 @@ export default function DashboardPage(): JSX.Element {
     }
   }, [status, session]);
 
-  const handleCloseTour = async () => {
+    const handleCloseTour = async () => {
       setShowTour(false);
       try {
           await axios.post('/api/user/complete-onboarding');
@@ -269,26 +238,50 @@ export default function DashboardPage(): JSX.Element {
         setIsDeleting(false);
     }
   };
-
+  
+  //  render function for multi-file display
   const renderUnlockedContent = () => {
     if (!unlockedContent) return null;
-    if (unlockedContent.data && (unlockedContent.data.message || unlockedContent.data.fileData)) {
-        const { message, fileData } = unlockedContent.data;
-        if (!message && !fileData) return <p>This vault appears to be empty.</p>;
-        return (
-            <div>
-                {message && ( <div> <p style={{ fontWeight: '600', color: 'white', marginTop: 0, marginBottom: '0.5rem' }}>Message:</p> <pre className="unlockedContent">{message}</pre> </div> )}
-                {fileData && ( <div style={{ marginTop: message ? '1.5rem' : '0' }}> <p style={{ fontWeight: '600', color: 'white', marginTop: 0, marginBottom: '0.5rem' }}>Attachment:</p> {fileData.startsWith('data:image') ? ( <img src={fileData} alt="Unlocked content" style={{ maxWidth: '100%', borderRadius: '0.5rem' }} /> ) : ( <a href={fileData} download={unlockedContent.fileName || 'vault_attachment'} className="downloadLink"> Download {unlockedContent.fileName || 'File'} </a> )} </div> )}
-            </div>
-        );
-    }
-    const oldFormatMessage = (unlockedContent as any).message;
-    if (typeof oldFormatMessage === 'string') {
-        return ( <div> <p style={{ fontWeight: '600', color: 'white', marginTop: 0, marginBottom: '0.5rem' }}>Message:</p> <pre className="unlockedContent">{oldFormatMessage}</pre> </div> );
-    }
-    return <p>Unsupported content type or the vault is empty.</p>;
-  };
+    const { message, files } = unlockedContent;
 
+    if (!message && (!files || files.length === 0)) {
+        return <p>This vault appears to be empty.</p>;
+    }
+
+    return (
+        <div>
+            {message && (
+                <div>
+                    <p style={{ fontWeight: '600', color: 'white', marginTop: 0, marginBottom: '0.5rem' }}>Message:</p>
+                    <pre className="unlockedContent">{message}</pre>
+                </div>
+            )}
+            {files && files.length > 0 && (
+                <div style={{ marginTop: message ? '1.5rem' : '0' }}>
+                    <p style={{ fontWeight: '600', color: 'white', marginTop: 0, marginBottom: '0.5rem' }}>Attachments:</p>
+                    <div className="attachmentsGrid">
+                        {files.map((file, index) => (
+                            <div key={index} className="attachmentItem">
+                                {file.type.startsWith('image/') ? (
+                                    <img src={file.data} alt={file.name} className="attachmentPreview" />
+                                ) : (
+                                    <div className="fileIcon">
+                                        <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M13 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V9z"></path><polyline points="13 2 13 9 20 9"></polyline></svg>
+                                    </div>
+                                )}
+                                <a href={file.data} download={file.name} className="attachmentName">
+                                    {file.name}
+                                </a>
+                            </div>
+                        ))}
+                    </div>
+                </div>
+            )}
+        </div>
+    );
+  };
+  
+  // All CSS styles...
   const cssStyles = `
     html, body { margin: 0; padding: 0; box-sizing: border-box; }
     .pageContainer { display: flex; flex-direction: column; min-height: 100vh; width: 100%; background: linear-gradient(to bottom right, #0f172a, #000000, #3b0764); padding: 2rem 1rem; font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; color: white; }
@@ -347,23 +340,16 @@ export default function DashboardPage(): JSX.Element {
     .fileInputLabel { display: flex; align-items: center; justify-content: center; width: 100%; height: 60px; background-color: rgba(15, 23, 42, 0.5); border: 2px dashed #475569; border-radius: 0.5rem; color: #94a3b8; cursor: pointer; transition: all 0.3s; margin-top: 0; }
     .fileInputLabel:hover { border-color: #a855f7; color: white; }
     .fileInputLabel span { text-align: center; max-width: 90%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .attachmentsGrid { display: grid; grid-template-columns: repeat(auto-fill, minmax(100px, 1fr)); gap: 1rem; }
+    .attachmentItem { display: flex; flex-direction: column; align-items: center; gap: 0.5rem; }
+    .attachmentPreview { width: 100%; height: 100px; object-fit: cover; border-radius: 0.5rem; background-color: rgba(255, 255, 255, 0.05); }
+    .fileIcon { width: 100%; height: 100px; display: flex; align-items: center; justify-content: center; background-color: rgba(255, 255, 255, 0.05); border-radius: 0.5rem; color: #94a3b8; }
+    .attachmentName { font-size: 0.75rem; color: #94a3b8; text-decoration: none; word-break: break-all; text-align: center; }
+    .attachmentName:hover { color: #a855f7; }
   `;
-
-  if (status === 'loading') {
-    return (
-        <div className="pageContainer">
-            <Head>
-                <title>Digital Afterlife</title>
-            </Head>
-            <style dangerouslySetInnerHTML={{ __html: cssStyles }} />
-            <p>Loading session...</p>
-        </div>
-    );
-  }
-
+  // All JSX remains the same
   return (
     <>
-      {showTour && <OnboardingTour onClose={handleCloseTour} />}
       <Head>
           <title>Digital Afterlife</title>
       </Head>
@@ -496,7 +482,7 @@ export default function DashboardPage(): JSX.Element {
             {unlockedContent ? (
               <div>{renderUnlockedContent()}</div>
             ) : isUnlocking ? (
-              <p>Unlocking...</p>
+              <p style={{ color: "white" }}>Unlocking...</p>
             ) : selectedVault && 'ownerName' in selectedVault ? (
               <p>Verifying access and retrieving content...</p>
             ) : (

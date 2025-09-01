@@ -1,143 +1,96 @@
-// pages/create.tsx
-import React, { JSX, useState } from 'react';
+import React, { JSX, useState, useCallback } from 'react';
 import { useSession } from 'next-auth/react';
 import { useRouter } from 'next/router';
 import axios from 'axios';
 import Head from 'next/head';
+import Image from 'next/image';
+import { useDropzone } from 'react-dropzone';
 
 export default function CreatePage(): JSX.Element {
   const router = useRouter();
-  const { data: session, status } = useSession({ 
-    required: true, 
-    onUnauthenticated() { router.push('/login') } 
-  });
+  const { data: session, status } = useSession({ required: true, onUnauthenticated() { router.push('/login') }});
   
   const [name, setName] = useState<string>('');
   const [message, setMessage] = useState<string>('');
-  const [file, setFile] = useState<File | null>(null);
   const [password, setPassword] = useState<string>('');
   const [recipientEmails, setRecipientEmails] = useState<string>('');
+  const [files, setFiles] = useState<File[]>([]);
   
   const [cid, setCid] = useState<string>('');
   const [isLoading, setIsLoading] = useState<boolean>(false);
-  const [loadingStep, setLoadingStep] = useState<string>('');
   const [error, setError] = useState<string>('');
-  const [copied, setCopied] = useState<boolean>(false);
+  
+  const onDrop = useCallback((acceptedFiles: File[]) => {
+    setFiles(prevFiles => [...prevFiles, ...acceptedFiles]);
+  }, []);
 
-  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    if (e.target.files && e.target.files[0]) {
-      setFile(e.target.files[0]);
-    }
+  const { getRootProps, getInputProps, isDragActive } = useDropzone({ onDrop });
+
+  const removeFile = (fileName: string) => {
+    setFiles(files.filter(file => file.name !== fileName));
   };
 
   const handleCreate = async (): Promise<void> => {
-    if (!name || (!message && !file) || !password) {
-      setError('Please provide a name, a password, and either a message or a file.');
+    if (!name || !password) {
+      setError('Vault name and password are required.');
       return;
     }
     
     setIsLoading(true);
     setError('');
     setCid('');
-    setCopied(false);
+
+    const formData = new FormData();
+    formData.append('name', name);
+    formData.append('password', password);
+    formData.append('message', message);
+    formData.append('recipientEmails', recipientEmails);
+    files.forEach(file => {
+      formData.append('files', file);
+    });
 
     try {
-      let fileCid = null;
-      let fileMeta = {};
-
-      // Upload the file
-      if (file) {
-        setLoadingStep('Uploading file...');
-        const formData = new FormData();
-        formData.append('file', file);
-        const fileRes = await axios.post('/api/pinata/uploadFile', formData, {
-          headers: { 'Content-Type': 'multipart/form-data' },
-        });
-        fileCid = fileRes.data.cid;
-        fileMeta = { originalFilename: file.name, mimeType: file.type || 'application/octet-stream' };
-      }
-
-      // Upload the JSON metadata
-      setLoadingStep('Creating vault structure...');
-      const vaultContent = {
-        message: message,
-        fileCid: fileCid,
-      };
-      const jsonRes = await axios.post('/api/pinata/upload', { content: vaultContent });
-      const finalCid = jsonRes.data.cid;
-
-      // final CID and vault details to DB
-      setLoadingStep('Securing vault...');
-      const vaultResponse = await axios.post('/api/vaults/create', { 
-        cid: finalCid,
-        password,
-        name,
-        recipientEmails,
-        ...fileMeta,
+      const vaultResponse = await axios.post('/api/vaults/create', formData, {
+        headers: { 'Content-Type': 'multipart/form-data' },
       });
-
       setCid(vaultResponse.data.cid);
-
     } catch (err: any) {
       setError(err.response?.data?.error || 'An unknown error occurred during vault creation.');
     } finally {
       setIsLoading(false);
-      setLoadingStep('');
-    }
-  };
-
-  const handleCopyToClipboard = (): void => {
-    if (cid) {
-      const textArea = document.createElement("textarea");
-      textArea.value = cid;
-      document.body.appendChild(textArea);
-      textArea.focus();
-      textArea.select();
-      try {
-        document.execCommand('copy');
-        setCopied(true);
-        setTimeout(() => setCopied(false), 2000);
-      } catch (err) {
-        console.error('Failed to copy text: ', err);
-      }
-      document.body.removeChild(textArea);
     }
   };
 
   const cssStyles = `
     html, body { margin: 0; padding: 0; box-sizing: border-box; }
-    @keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
-    .pageContainer { min-height: 100vh; width: 100%; background: linear-gradient(to bottom right, #0f172a, #000000, #3b0764); display: flex; align-items: center; justify-content: center; padding: 1rem; font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; }
-    .vaultCard { width: 100%; max-width: 500px; background-color: rgba(0, 0, 0, 0.2); backdrop-filter: blur(10px); border-radius: 1rem; box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.25); padding: 2rem; border: 1px solid #334155; display: flex; flex-direction: column; gap: 1.5rem; }
-    .header { text-align: center; }
-    .title { font-size: 1.875rem; font-weight: 700; color: white; margin: 0;}
-    .subtitle { color: #c4b5fd; margin-top: 0.5rem; margin-bottom: 0; }
-    .form { display: flex; flex-direction: column; gap: 1rem; }
-    .styledInput { width: 100%; padding: 0.75rem; background-color: rgba(15, 23, 42, 0.5); border: 1px solid #475569; border-radius: 0.5rem; color: white; transition: all 0.3s; box-sizing: border-box; }
-    .styledInput::placeholder { color: #94a3b8; }
-    .styledInput:focus { outline: none; box-shadow: 0 0 0 2px #a855f7; }
-    .fileInputLabel { display: flex; align-items: center; justify-content: center; width: 100%; height: 60px; background-color: rgba(15, 23, 42, 0.5); border: 2px dashed #475569; border-radius: 0.5rem; color: #94a3b8; cursor: pointer; transition: all 0.3s; }
-    .fileInputLabel:hover { border-color: #a855f7; color: white; }
-    .fileInputLabel span { text-align: center; max-width: 90%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-    .createButton { width: 100%; padding: 0.75rem 0; background-color: #581c87; color: white; font-weight: 700; border-radius: 0.5rem; border: none; cursor: pointer; display: flex; align-items: center; justify-content: center; }
-    .createButton:hover { background-color: #6b21a8; }
-    .createButton:disabled { background-color: #475569; cursor: not-allowed; }
-    .loadingText { font-size: 0.875rem; color: #c4b5fd; text-align: center; }
-    .errorMessage { text-align: center; color: #fcd34d; background-color: rgba(127, 29, 29, 0.5); padding: 0.75rem; border-radius: 0.5rem; border: 1px solid #7f1d1d; }
-    .resultDisplay { margin-top: 1.5rem; padding: 1rem; background-color: rgba(0, 0, 0, 0.4); border-radius: 0.5rem; text-align: center; color: white; border: 1px solid #334155; animation: fadeIn 0.5s ease-out forwards; }
-    .cidContainer { position: relative; background-color: rgba(0, 0, 0, 0.5); padding: 0.75rem; border-radius: 0.5rem; font-family: monospace; font-size: 0.875rem; word-break: break-all; cursor: pointer; border: 1px solid #475569; margin-top: 0.5rem; }
-    .copiedMessage {margin-top: 10px;font-size: 14px;color: #00ff00;text-align: center;text-shadow:0 0 5px #00ff00,0 0 10px #00ff00,0 0 20px #00ff00;}
+    .pageContainer { display: flex; flex-direction: column; min-height: 100vh; width: 100%; background: linear-gradient(to bottom right, #0f172a, #000000, #3b0764); padding: 2rem 1rem; font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; }
+    .header { position: relative; display: flex; justify-content: center; align-items: center; margin-bottom: 2rem; padding: 1rem 0; max-width: 1200px; margin-left: auto; margin-right: auto; }
+    .header-title-container { display: flex; align-items: center; gap: 1rem; }
+    .siteTitle { font-size: 3.25rem; font-weight: 800; margin: 0; background: linear-gradient(90deg, #a78bfa, #7c3aed); -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text; color: transparent; }
+    .backButton { position: absolute; right: 0; top: 50%; transform: translateY(-50%); background: none; border: 1px solid #475569; color: #94a3b8; padding: 0.5rem 1rem; border-radius: 0.5rem; cursor: pointer; transition: background-color 0.2s, color 0.2s; }
+    .backButton:hover { background-color: #475569; color: white; }
+    .vaultCard { width: 100%; max-width: 600px; margin: 2rem auto 0; background-color: rgba(0, 0, 0, 0.2); backdrop-filter: blur(10px); border-radius: 1rem; box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.25); padding: 2.5rem; border: 1px solid #334155; }
+    .title { font-size: 1.875rem; font-weight: 700; color: white; margin: 0; text-align: center; }
+    .form { display: flex; flex-direction: column; gap: 1rem; margin-top: 2rem; }
+    .styledInput { width: 100%; padding: 0.75rem 1rem; background-color: rgba(15, 23, 42, 0.5); border: 1px solid #475569; border-radius: 0.5rem; color: white; box-sizing: border-box; resize: vertical; font-family: 'Inter', sans-serif; }
+    .dropzone { border: 2px dashed #475569; border-radius: 0.5rem; padding: 2rem; text-align: center; color: #94a3b8; cursor: pointer; transition: border-color 0.3s; }
+    .dropzone.active { border-color: #a855f7; background-color: rgba(168, 85, 247, 0.1); }
+    .fileList { margin-top: 1rem; border-top: 1px solid #334155; padding-top: 1rem; }
+    .fileList h4 { margin: 0 0 0.5rem 0; color: #94a3b8; font-weight: 500; }
+    .fileItem { display: flex; justify-content: space-between; align-items: center; background-color: rgba(15, 23, 42, 0.5); padding: 0.5rem 1rem; border-radius: 0.5rem; margin-bottom: 0.5rem; font-size: 0.875rem; color: #e2e8f0; }
+    .removeFileBtn { background: none; border: none; color: #f87171; cursor: pointer; font-size: 1.25rem; }
+    .createButton { width: 100%; padding: 0.75rem 0; background-color: #581c87; color: white; font-weight: 700; border-radius: 0.5rem; border: none; cursor: pointer; }
+    .errorMessage, .resultDisplay { margin-top: 1.5rem; padding: 1rem; border-radius: 0.5rem; text-align: center; }
+    .errorMessage { color: #fcd34d; background-color: rgba(127, 29, 29, 0.5); }
+    .resultDisplay { background-color: rgba(0, 0, 0, 0.4); color: white; }
+    .resultDisplay code { word-break: break-all; }
   `;
-
+  
   if (status === 'loading') {
     return (
-      <div className="pageContainer">
-        <Head>
-          <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" />
-        </Head>
-        <style dangerouslySetInnerHTML={{ __html: cssStyles }} />
-        <p style={{color: 'white'}}>Loading...</p>
-      </div>
+        <div className="pageContainer">
+            <p style={{color: 'white'}}>Loading...</p>
+        </div>
     );
   }
   
@@ -145,64 +98,81 @@ export default function CreatePage(): JSX.Element {
     <>
       <Head>
         <title>Create Vault - Digital Afterlife</title>
-        <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" />
       </Head>
       <div className="pageContainer">
         <style dangerouslySetInnerHTML={{ __html: cssStyles }} />
-        <div className="vaultCard">
-          <div className="header">
-            <h1 className="title">Create a New Vault</h1>
-            <p className="subtitle">Combine a message and a file in one secure package.</p>
+        <header className="header">
+          <div className="header-title-container">
+            <Image src="/Logo.png" alt="Digital Afterlife Logo" width={150} height={150} priority={true} />
+            <h1 className="siteTitle">Digital Afterlife</h1>
           </div>
+          <button className="backButton" onClick={() => router.push('/dashboard')}>Back to Dashboard</button>
+        </header>
+        <div className="vaultCard">
+          <h1 className="title">Create a New Vault</h1>
           <div className="form">
-            <input
-              className="styledInput"
-              placeholder="Vault Name"
-              value={name}
-              onChange={(e) => setName(e.target.value)}
+            <input 
+              className="styledInput" 
+              placeholder="Vault Name" 
+              value={name} 
+              onChange={(e) => setName(e.target.value)} 
+              disabled={isLoading} 
+            />
+            <textarea 
+              className="styledInput" 
+              rows={5} 
+              placeholder="Enter a secret message (optional)" 
+              value={message} 
+              onChange={(e) => setMessage(e.target.value)} 
+              disabled={isLoading} 
+            />
+            <div {...getRootProps({ className: `dropzone ${isDragActive ? 'active' : ''}` })}>
+              <input {...getInputProps()} />
+              {isDragActive ? (
+                <p>Drop the files here...</p>
+              ) : (
+                <p>Drag & drop files here, or click to select</p>
+              )}
+            </div>
+            {files.length > 0 && (
+              <div className="fileList">
+                <h4>Staged Files:</h4>
+                {files.map(file => (
+                  <div key={file.name} className="fileItem">
+                    <span>{file.name}</span>
+                    <button onClick={() => removeFile(file.name)} className="removeFileBtn" title="Remove file">
+                      &times;
+                    </button>
+                  </div>
+                ))}
+              </div>
+            )}
+            <input 
+              className="styledInput" 
+              placeholder="Recipient Emails (comma-separated)" 
+              value={recipientEmails} 
+              onChange={(e) => setRecipientEmails(e.target.value)} 
               disabled={isLoading}
             />
-            <textarea
-              className="styledInput"
-              rows={5}
-              placeholder="Enter a secret message (optional)"
-              value={message}
-              onChange={(e) => setMessage(e.target.value)}
-              disabled={isLoading}
-            />
-            <label htmlFor="file-upload" className="fileInputLabel">
-              <span>{file ? file.name : 'Attach a file (optional)'}</span>
-            </label>
-            <input id="file-upload" type="file" onChange={handleFileChange} disabled={isLoading} style={{ display: 'none' }} />
-            
-            <input
-              className="styledInput"
-              type="text"
-              placeholder="Recipient Emails (comma-separated)"
-              value={recipientEmails}
-              onChange={(e) => setRecipientEmails(e.target.value)}
-              disabled={isLoading}
-            />
-            <input
-              className="styledInput"
-              type="password"
-              placeholder="Enter vault password"
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
+            <input 
+              className="styledInput" 
+              type="password" 
+              placeholder="Enter vault password" 
+              value={password} 
+              onChange={(e) => setPassword(e.target.value)} 
               disabled={isLoading}
             />
           </div>
           <button className="createButton" onClick={handleCreate} disabled={isLoading}>
-            {isLoading ? (loadingStep || 'Creating...') : 'Create Vault'}
+            {isLoading ? 'Creating...' : 'Create Vault'}
           </button>
-          {error && <p className="errorMessage">{error}</p>}
+          {error && (
+            <p className="errorMessage">{error}</p>
+          )}
           {cid && (
             <div className="resultDisplay">
-              <p style={{ fontWeight: '600' }}>Vault Created Successfully!</p>
-              <div className="cidContainer" onClick={handleCopyToClipboard}>
-                <code>{cid}</code>
-              </div>
-              {copied && <p className="copiedMessage">Copied to clipboard!</p>}
+              <p>Vault Created Successfully! CID:</p>
+              <code>{cid}</code>
             </div>
           )}
         </div>
@@ -210,3 +180,4 @@ export default function CreatePage(): JSX.Element {
     </>
   );
 }
+
