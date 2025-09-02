@@ -4,7 +4,6 @@ import axios from 'axios';
 import Head from 'next/head';
 import Image from 'next/image';
 
-// --- TYPE DEFINITIONS ---
 interface UnlockedFile {
   data: string;
   name: string;
@@ -15,20 +14,17 @@ interface VaultContent {
   files?: UnlockedFile[];
 }
 
-// --- COMPONENT ---
 export default function ViewVaultPage() {
   const router = useRouter();
   const { cid } = router.query;
 
-  // --- STATE MANAGEMENT ---
   const [content, setContent] = useState<VaultContent | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState('');
   
-  // State for the preview modal
   const [modalFile, setModalFile] = useState<UnlockedFile | null>(null);
 
-  // --- DATA FETCHING ---
+  // DATA FETCHING 
   useEffect(() => {
     if (cid) {
       const fetchContent = async () => {
@@ -47,7 +43,6 @@ export default function ViewVaultPage() {
     }
   }, [cid]);
 
-  // --- MODAL HANDLERS ---
   const openModal = (file: UnlockedFile) => {
     setModalFile(file);
   };
@@ -56,7 +51,6 @@ export default function ViewVaultPage() {
     setModalFile(null);
   };
 
-  // --- RENDER LOGIC ---
   const renderContent = () => {
     if (!content) return null;
     const { message, files } = content;
@@ -78,7 +72,6 @@ export default function ViewVaultPage() {
             <p className="contentLabel">Attachments:</p>
             <div className="attachmentsGrid">
               {files.map((file, index) => (
-                // Changed from <a> to <div> with an onClick handler to open the modal
                 <div key={index} onClick={() => openModal(file)} className="attachmentItemContainer">
                   <div className="attachmentItem">
                     {file.type.startsWith('image/') ? (
@@ -134,7 +127,7 @@ export default function ViewVaultPage() {
     );
   };
 
-  // --- STYLES ---
+  // STYLES 
   const cssStyles = `
     html, body { margin: 0; padding: 0; box-sizing: border-box; }
     .pageContainer { display: flex; flex-direction: column; min-height: 100vh; width: 100%; background: linear-gradient(to bottom right, #0f172a, #000000, #3b0764); padding: 2rem 1rem; font-family: 'Inter', sans-serif; }
@@ -190,8 +183,7 @@ export default function ViewVaultPage() {
           {content && renderContent()}
         </main>
       </div>
-
-      {/* Render the modal outside the main layout but within the component return */}
+      
       {renderModal()}
     </>
   );

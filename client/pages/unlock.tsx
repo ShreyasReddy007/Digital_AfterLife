@@ -5,26 +5,31 @@ import Head from 'next/head';
 import Image from 'next/image';
 import { useRouter } from 'next/router';
 
-// --- TYPE DEFINITIONS ---
-interface UnlockedFile { data: string; name: string; type: string; }
-interface UnlockedContent { message?: string; files?: UnlockedFile[]; }
+interface UnlockedFile 
+{ data: string; 
+  name: string; 
+  type: string; 
+}
 
-// --- COMPONENT ---
+interface UnlockedContent 
+{ 
+  message?: string; 
+  files?: UnlockedFile[]; 
+}
+
 export default function Unlock(): JSX.Element {
   const { status } = useSession({ required: true });
   const router = useRouter();
 
-  // --- STATE MANAGEMENT ---
+  //  STATE MANAGEMENT 
   const [cid, setCid] = useState<string>('');
   const [password, setPassword] = useState<string>('');
   const [content, setContent] = useState<UnlockedContent | null>(null);
   const [isLoading, setIsLoading] = useState<boolean>(false);
   const [error, setError] = useState<string>('');
   
-  // State for the preview modal
   const [modalFile, setModalFile] = useState<UnlockedFile | null>(null);
 
-  // --- API & EVENT HANDLERS ---
   const handleUnlock = async (): Promise<void> => {
     if (!cid || !password) {
       setError('Please provide both the Vault CID and the password.');
@@ -43,7 +48,6 @@ export default function Unlock(): JSX.Element {
     }
   };
   
-  // --- MODAL HANDLERS ---
   const openModal = (file: UnlockedFile) => {
     setModalFile(file);
   };
@@ -52,7 +56,6 @@ export default function Unlock(): JSX.Element {
     setModalFile(null);
   };
 
-  // --- RENDER LOGIC ---
   const renderUnlockedContent = () => {
     if (!content) return null;
     const { message, files } = content;
@@ -126,7 +129,7 @@ export default function Unlock(): JSX.Element {
     );
   };
 
-  // --- STYLES ---
+  // STYLES
   const cssStyles = `
     html, body { margin: 0; padding: 0; box-sizing: border-box; }
     .pageContainer { display: flex; flex-direction: column; min-height: 100vh; width: 100%; background: linear-gradient(to bottom right, #0f172a, #000000, #3b0764); padding: 2rem 1rem; font-family: 'Inter', sans-serif; }
@@ -155,8 +158,6 @@ export default function Unlock(): JSX.Element {
     .fileIcon { width: 100%; height: 100px; display: flex; flex-direction: column; align-items: center; justify-content: center; color: #94a3b8; }
     .pdfIcon { color: #f87171; }
     .attachmentName { font-size: 0.75rem; color: #94a3b8; text-decoration: none; word-break: break-all; text-align: center; margin-top: 0.25rem; }
-
-    /* --- NEW MODAL STYLES --- */
     .modalOverlay { position: fixed; top: 0; left: 0; right: 0; bottom: 0; background-color: rgba(0, 0, 0, 0.7); display: flex; align-items: center; justify-content: center; z-index: 1000; padding: 1rem; backdrop-filter: blur(5px); }
     .modalContent { background-color: #1e293b; color: white; border-radius: 1rem; width: 100%; max-width: 900px; max-height: 90vh; display: flex; flex-direction: column; border: 1px solid #334155; box-shadow: 0 10px 25px rgba(0,0,0,0.5); }
     .modalHeader { display: flex; justify-content: space-between; align-items: center; padding: 1rem 1.5rem; border-bottom: 1px solid #334155; }
