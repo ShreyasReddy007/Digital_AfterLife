@@ -16,7 +16,6 @@ interface Vault {
   inactivityTrigger: boolean;
   recipientEmails: string[] | null;
 }
-
 interface RecipientVault {
   id: number;
   cid: string;
@@ -24,13 +23,11 @@ interface RecipientVault {
   created_at: string;
   ownerName: string;
 }
-
 interface UnlockedFile {
   data: string;
   name: string;
   type: string;
 }
-
 interface UnlockedContent {
   message?: string;
   files?: UnlockedFile[];
@@ -40,6 +37,7 @@ export default function DashboardPage(): JSX.Element {
   const { data: session, status, update } = useSession({ required: true, onUnauthenticated() { router.push('/login') } });
   const router = useRouter();
 
+  // STATE MANAGEMENT
   const [vaults, setVaults] = useState<Vault[]>([]);
   const [recipientVaults, setRecipientVaults] = useState<RecipientVault[]>([]);
   const [isLoading, setIsLoading] = useState<boolean>(true);
@@ -48,18 +46,24 @@ export default function DashboardPage(): JSX.Element {
   const [sortBy, setSortBy] = useState('newest');
   const [filterBy, setFilterBy] = useState('all');
 
-  const [isModalOpen, setIsModalOpen] = useState<boolean>(false); // For unlock
+  // Second-layer authentication state
+  const [isVerified, setIsVerified] = useState(false);
+  const [verifyPassword, setVerifyPassword] = useState('');
+  const [verifyError, setVerifyError] = useState('');
+  const [isVerifying, setIsVerifying] = useState(false);
+
+  // MODAL STATES
+  const [isModalOpen, setIsModalOpen] = useState<boolean>(false);
   const [isDeleteModalOpen, setIsDeleteModalOpen] = useState<boolean>(false);
   const [isEditModalOpen, setIsEditModalOpen] = useState<boolean>(false);
-  
   const [previewModalFile, setPreviewModalFile] = useState<UnlockedFile | null>(null);
 
+  // ACTION STATES
   const [selectedVault, setSelectedVault] = useState<Vault | RecipientVault | null>(null);
   const [password, setPassword] = useState<string>('');
   const [modalError, setModalError] = useState<string>('');
   const [unlockedContent, setUnlockedContent] = useState<UnlockedContent | null>(null);
   const [editingVault, setEditingVault] = useState<Vault | null>(null);
-
   const [isUnlocking, setIsUnlocking] = useState<boolean>(false);
   const [isDeleting, setIsDeleting] = useState<boolean>(false);
   const [isEditing, setIsEditing] = useState(false);
@@ -69,7 +73,7 @@ export default function DashboardPage(): JSX.Element {
   const [editMessage, setEditMessage] = useState('');
   const [editFile, setEditFile] = useState<File | null>(null);
 
-  // Data fetching & Handling errors
+  // DATA FETCHING
   const fetchAllData = async () => {
     setIsLoading(true);
     setError('');
@@ -88,12 +92,28 @@ export default function DashboardPage(): JSX.Element {
   };
 
   useEffect(() => {
-    if (status === 'authenticated') {
+    if (status === 'authenticated' && session?.user) {
+      if (!session.user.hasSecondaryPassword) {
+        setIsVerified(true);
+      }
       fetchAllData();
     }
-  }, [status]);
+  }, [status, session]);
 
-  // Vault data processing 
+  // ACTION HANDLERS
+  const handleVerifyPassword = async () => {
+    setIsVerifying(true);
+    setVerifyError('');
+    try {
+        await axios.post('/api/auth/verify-password', { password: verifyPassword });
+        setIsVerified(true);
+    } catch (err: any) {
+        setVerifyError(err.response?.data?.error || 'Verification failed.');
+    } finally {
+        setIsVerifying(false);
+    }
+  };
+
   const filteredAndSortedVaults = useMemo(() => {
     let processedVaults = [...vaults];
     if (searchTerm) {
@@ -176,22 +196,20 @@ export default function DashboardPage(): JSX.Element {
     formData.append('message', editMessage);
     if (editFile) formData.append('file', editFile);
     try {
-        await axios.post('/api/vaults/edit', formData, { headers: { 'Content-Type': 'multipart/form-data' } });
-        closeAllModals();
-        fetchAllData();
+      await axios.post('/api/vaults/edit', formData, { headers: { 'Content-Type': 'multipart/form-data' } });
+      closeAllModals();
+      fetchAllData();
     } catch (err: any) {
-        setModalError(err.response?.data?.error || 'Failed to update vault.');
+      setModalError(err.response?.data?.error || 'Failed to update vault.');
     } finally {
-        setIsEditing(false);
+      setIsEditing(false);
     }
   };
 
+  // MODAL CONTROLS
   const openUnlockModal = (vault: Vault | RecipientVault) => {
     setSelectedVault(vault);
     setIsModalOpen(true);
-    setPassword('');
-    setModalError('');
-    setUnlockedContent(null);
     if ('ownerName' in vault) {
       handleRecipientUnlock(vault as RecipientVault);
     }
@@ -210,89 +228,85 @@ export default function DashboardPage(): JSX.Element {
     setModalError('');
     setIsFetchingContent(true);
     try {
-        const res = await axios.get(`/api/vaults/content?cid=${vault.cid}`);
-        setEditMessage(res.data.message || '');
+      const res = await axios.get(`/api/vaults/content?cid=${vault.cid}`);
+      setEditMessage(res.data.message || '');
     } catch (err) {
-        setModalError('Could not load vault content.');
+      setModalError('Could not load vault content.');
     } finally {
-        setIsFetchingContent(false);
+      setIsFetchingContent(false);
     }
   };
-  
-  // Handlers for the preview modal
+
   const openPreviewModal = (file: UnlockedFile) => {
     setPreviewModalFile(file);
   };
   
-  const closePreviewModal = () => {
-    setPreviewModalFile(null);
-  };
-
   const closeAllModals = () => {
     setIsModalOpen(false);
     setIsDeleteModalOpen(false);
     setIsEditModalOpen(false);
+    setPreviewModalFile(null);
     setSelectedVault(null);
     setEditingVault(null);
     setEditFile(null);
+    setPassword('');
+    setModalError('');
+    setUnlockedContent(null);
   };
 
+  // RENDER FUNCTIONS
   const renderUnlockedContent = () => {
     if (!unlockedContent) return null;
     const { message, files } = unlockedContent;
-
     if (!message && (!files || files.length === 0)) {
-        return <p>This vault appears to be empty.</p>;
+      return <p>This vault appears to be empty.</p>;
     }
-
     return (
-        <div>
-            {message && (
-                <div>
-                    <p style={{ fontWeight: '600', color: 'white', marginTop: 0, marginBottom: '0.5rem' }}>Message:</p>
-                    <pre className="unlockedContent">{message}</pre>
+      <div>
+        {message && (
+          <div>
+            <p className="modalLabel">Message:</p>
+            <pre className="unlockedContent">{message}</pre>
+          </div>
+        )}
+        {files && files.length > 0 && (
+          <div style={{ marginTop: message ? '1.5rem' : '0' }}>
+            <p className="modalLabel">Attachments:</p>
+            <div className="attachmentsGrid">
+              {files.map((file, index) => (
+                <div key={index} className="attachmentItemContainer" onClick={() => openPreviewModal(file)}>
+                  <div className="attachmentItem">
+                    {file.type.startsWith('image/') ? (
+                      <img src={file.data} alt={file.name} className="attachmentPreview" />
+                    ) : file.type === 'application/pdf' ? (
+                      <div className="fileIcon pdfIcon">
+                        <svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path><polyline points="14 2 14 8 20 8"></polyline><line x1="16" y1="13" x2="8" y2="13"></line><line x1="16" y1="17" x2="8" y2="17"></line><polyline points="10 9 9 9 8 9"></polyline></svg>
+                        <span>PDF</span>
+                      </div>
+                    ) : (
+                      <div className="fileIcon">
+                        <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M13 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V9z"></path><polyline points="13 2 13 9 20 9"></polyline></svg>
+                      </div>
+                    )}
+                    <span className="attachmentName">{file.name}</span>
+                  </div>
                 </div>
-            )}
-            {files && files.length > 0 && (
-                <div style={{ marginTop: message ? '1.5rem' : '0' }}>
-                    <p style={{ fontWeight: '600', color: 'white', marginTop: 0, marginBottom: '0.5rem' }}>Attachments:</p>
-                    <div className="attachmentsGrid">
-                        {files.map((file, index) => (
-                          // onClick handler to open the preview modal
-                          <div key={index} className="attachmentItemContainer" onClick={() => openPreviewModal(file)}>
-                            <div className="attachmentItem">
-                              {file.type.startsWith('image/') ? (
-                                <img src={file.data} alt={file.name} className="attachmentPreview" />
-                              ) : file.type === 'application/pdf' ? (
-                                <div className="fileIcon pdfIcon">
-                                  <svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path><polyline points="14 2 14 8 20 8"></polyline><line x1="16" y1="13" x2="8" y2="13"></line><line x1="16" y1="17" x2="8" y2="17"></line><polyline points="10 9 9 9 8 9"></polyline></svg>
-                                  <span>PDF</span>
-                                </div>
-                              ) : (
-                                <div className="fileIcon">
-                                  <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M13 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V9z"></path><polyline points="13 2 13 9 20 9"></polyline></svg>
-                                </div>
-                              )}
-                              <span className="attachmentName">{file.name}</span>
-                            </div>
-                          </div>
-                        ))}
-                    </div>
-                </div>
-            )}
-        </div>
+              ))}
+            </div>
+          </div>
+        )}
+      </div>
     );
   };
-  
+
   const renderPreviewModal = () => {
     if (!previewModalFile) return null;
-
     return (
-      <div className="modalOverlay" onClick={closePreviewModal}>
+      <div className="modalOverlay" onClick={closeAllModals}>
         <div className="previewModalContent" onClick={(e) => e.stopPropagation()}>
           <div className="modalHeader">
             <h2 className="modalTitle">{previewModalFile.name}</h2>
-            <button className="modalCloseButton" onClick={closePreviewModal}>&times;</button>
+            <button className="modalCloseButton" onClick={closeAllModals}>&times;</button>
           </div>
           <div className="modalBody">
             {previewModalFile.type.startsWith('image/') ? (
@@ -359,6 +373,7 @@ export default function DashboardPage(): JSX.Element {
     .styledInput { width: 100%; padding: 0.75rem; background-color: rgba(15, 23, 42, 0.5); border: 1px solid #475569; border-radius: 0.5rem; color: white; margin-top: 1rem; box-sizing: border-box; }
     .errorMessage { color: #fcd34d; text-align: center; margin-top: 1rem; }
     .unlockedContent {background: rgba(0, 0, 0, 0.3);padding: 1rem;border-radius: 0.5rem;white-space: pre-wrap;font-family: monospace;color: #00FF41;text-shadow:0 0 5px #00FF41,0 0 10px #00FF41,0 0 20px #00FF41,0 0 40px #00FF41;}
+    .modalLabel { font-weight: 600; color: white; margin: 0 0 0.5rem 0; }
     .footer { text-align: center; padding-top: 2rem; margin-top: auto; }
     .toggleContainer { display: flex; align-items: center; justify-content: space-between; margin-top: 1rem; padding-top: 1rem; border-top: 1px solid #334155; }
     .toggleLabel { font-size: 0.875rem; color: #94a3b8; }
@@ -373,14 +388,12 @@ export default function DashboardPage(): JSX.Element {
     .fileInputLabel span { text-align: center; max-width: 90%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
     .attachmentsGrid { display: grid; grid-template-columns: repeat(auto-fill, minmax(100px, 1fr)); gap: 0.5rem; }
     .attachmentItemContainer { cursor: pointer; }
-    .attachmentItem { display: flex; flex-direction: column; align-items: center; gap: 0.5rem; height: 60%; padding: 0.2rem; background-color: rgba(255, 255, 255, 0.05); border-radius: 0.2rem; transition: background-color 0.2s; }
+    .attachmentItem { display: flex; flex-direction: column; align-items: center; gap: 0.5rem; height: 100%; padding: 0.5rem; background-color: rgba(255, 255, 255, 0.05); border-radius: 0.5rem; transition: background-color 0.2s; }
     .attachmentItem:hover { background-color: rgba(255, 255, 255, 0.1); }
     .attachmentPreview { width: 100%; height: 100px; object-fit: cover; border-radius: 0.5rem; }
     .fileIcon { width: 100%; height: 100px; display: flex; flex-direction: column; align-items: center; justify-content: center; color: #94a3b8; }
     .pdfIcon { color: #f87171; }
     .attachmentName { font-size: 0.75rem; color: #94a3b8; text-decoration: none; word-break: break-all; text-align: center; margin-top: 0.25rem; }
-
-    /* --- NEW PREVIEW MODAL STYLES --- */
     .previewModalContent { background-color: #1e293b; color: white; border-radius: 1rem; width: 100%; max-width: 900px; max-height: 90vh; display: flex; flex-direction: column; border: 1px solid #334155; box-shadow: 0 10px 25px rgba(0,0,0,0.5); }
     .modalTitle { font-size: 1.25rem; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; margin: 0; color: white;}
     .modalBody { flex-grow: 1; padding: 1.5rem; overflow-y: auto; text-align: center; }
@@ -393,10 +406,57 @@ export default function DashboardPage(): JSX.Element {
     .downloadButton:hover { background-color: #a78bfa; }
   `;
 
+  // --- MAIN RENDER ---
+  if (status === 'loading') {
+    return (
+      <div className="pageContainer">
+        <Head><title>Loading...</title></Head>
+        <style dangerouslySetInnerHTML={{ __html: cssStyles }} />
+        <p>Loading session...</p>
+      </div>
+    );
+  }
+
+  if (status === 'authenticated' && !isVerified) {
+    return (
+      <>
+        <Head><title>Verify Access</title></Head>
+        <div className="pageContainer">
+            <style dangerouslySetInnerHTML={{ __html: cssStyles }} />
+            <div className="modalOverlay" style={{position: 'absolute', backdropFilter: 'none'}}>
+                <div className="modalContent">
+                    <h2 style={{ color: 'white', marginTop: 0, textAlign: 'center' }}>Secondary Verification</h2>
+                    <p style={{ color: '#94a3b8', textAlign: 'center' }}>
+                        For your security, please enter your secondary password to access your dashboard.
+                    </p>
+                    <input 
+                        type="password" 
+                        className="styledInput" 
+                        value={verifyPassword} 
+                        onChange={(e) => setVerifyPassword(e.target.value)}
+                        onKeyPress={(e) => e.key === 'Enter' && handleVerifyPassword()}
+                        placeholder="Enter secondary password" 
+                    />
+                    <button 
+                        className="actionButton unlockButton" 
+                        style={{ width: '100%', marginTop: '1.5rem' }} 
+                        onClick={handleVerifyPassword}
+                        disabled={isVerifying}
+                    >
+                        {isVerifying ? 'Verifying...' : 'Unlock Dashboard'}
+                    </button>
+                    {verifyError && <p className="errorMessage">{verifyError}</p>}
+                </div>
+            </div>
+        </div>
+      </>
+    );
+  }
+
   return (
     <>
       <Head>
-        <title>Digital Afterlife Dashboard</title>
+        <title>Digital Afterlife</title>
       </Head>
       <div className="pageContainer">
         <style dangerouslySetInnerHTML={{ __html: cssStyles }} />
@@ -413,6 +473,9 @@ export default function DashboardPage(): JSX.Element {
             <div className="navButton" onClick={() => router.push('/create')}>Create New Vault</div>
             <div className="navButton" onClick={() => router.push('/trigger')}>Set Trigger Date</div>
             <div className="navButton" onClick={() => router.push('/recovery-key')}>Set Recovery Key</div>
+            {!session?.user?.hasSecondaryPassword && (
+                 <div className="navButton" onClick={() => router.push('/set-password')}>Set Secondary Password</div>
+            )}
             <div className="navButton" onClick={() => router.push('/deliver')}>Deliver by Key</div>
           </nav>
 
@@ -430,28 +493,27 @@ export default function DashboardPage(): JSX.Element {
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.5rem', flexWrap: 'wrap', gap: '1rem' }}>
               <h2 className="title" style={{ fontSize: '1.75rem', margin: 0 }}>My Vaults</h2>
             </div>
-            
             <div className="controlsContainer">
-                <div className="searchBox">
-                    <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" viewBox="0 0 16 16"><path d="M11.742 10.344a6.5 6.5 0 1 0-1.397 1.398h-.001c.03.04.062.078.098.115l3.85 3.85a1 1 0 0 0 1.415-1.414l-3.85-3.85a1.007 1.007 0 0 0-.115-.1zM12 6.5a5.5 5.5 0 1 1-11 0 5.5 5.5 0 0 1 11 0z"/></svg>
-                    <input type="text" placeholder="Search vaults by name..." value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} />
+              <div className="searchBox">
+                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" viewBox="0 0 16 16"><path d="M11.742 10.344a6.5 6.5 0 1 0-1.397 1.398h-.001c.03.04.062.078.098.115l3.85 3.85a1 1 0 0 0 1.415-1.414l-3.85-3.85a1.007 1.007 0 0 0-.115-.1zM12 6.5a5.5 5.5 0 1 1-11 0 5.5 5.5 0 0 1 11 0z"/></svg>
+                <input type="text" placeholder="Search vaults by name..." value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} />
+              </div>
+              <div className="controlGroup">
+                <label className="controlLabel">Sort by:</label>
+                <select className="sortSelect" value={sortBy} onChange={(e) => setSortBy(e.target.value)}>
+                  <option value="newest">Date Created (Newest)</option>
+                  <option value="oldest">Date Created (Oldest)</option>
+                  <option value="name">Name (A-Z)</option>
+                </select>
+              </div>
+              <div className="controlGroup">
+                <label className="controlLabel">Filter by:</label>
+                <div className="filterButtons">
+                  <button className={`filterButton ${filterBy === 'all' ? 'active' : ''}`} onClick={() => setFilterBy('all')}>All</button>
+                  <button className={`filterButton ${filterBy === 'date' ? 'active' : ''}`} onClick={() => setFilterBy('date')}>Date Trigger</button>
+                  <button className={`filterButton ${filterBy === 'inactivity' ? 'active' : ''}`} onClick={() => setFilterBy('inactivity')}>Inactivity</button>
                 </div>
-                <div className="controlGroup">
-                    <label className="controlLabel">Sort by:</label>
-                    <select className="sortSelect" value={sortBy} onChange={(e) => setSortBy(e.target.value)}>
-                        <option value="newest">Date Created (Newest)</option>
-                        <option value="oldest">Date Created (Oldest)</option>
-                        <option value="name">Name (A-Z)</option>
-                    </select>
-                </div>
-                <div className="controlGroup">
-                     <label className="controlLabel">Filter by:</label>
-                    <div className="filterButtons">
-                        <button className={`filterButton ${filterBy === 'all' ? 'active' : ''}`} onClick={() => setFilterBy('all')}>All</button>
-                        <button className={`filterButton ${filterBy === 'date' ? 'active' : ''}`} onClick={() => setFilterBy('date')}>Date Trigger</button>
-                        <button className={`filterButton ${filterBy === 'inactivity' ? 'active' : ''}`} onClick={() => setFilterBy('inactivity')}>Inactivity</button>
-                    </div>
-                </div>
+              </div>
             </div>
 
             {isLoading ? <p style={{textAlign: 'center'}}>Loading vaults...</p> : error ? <p className="errorMessage">{error}</p> : filteredAndSortedVaults.length > 0 ? (
@@ -509,7 +571,7 @@ export default function DashboardPage(): JSX.Element {
         </div>
         <footer className="footer">
           <p style={{ fontSize: '0.8rem', color: '#94a3b8', maxWidth: '650px', margin: '0 auto 1rem', lineHeight: '1.6' }}>
-           Disclaimer : By enabling the inactivity trigger for a vault, you agree that its contents will be delivered to the recipients if your account remains inactive for a period of 6 months. This action is irreversible.
+            Disclaimer : By enabling the inactivity trigger for a vault, you agree that its contents will be delivered to the recipients if your account remains inactive for a period of 6 months. This action is irreversible.
           </p>
           <p style={{ color: '#64748b', fontSize: '0.75rem' }}>
             &copy; {new Date().getFullYear()} P.Shreyas Reddy. All Rights Reserved.
@@ -566,7 +628,7 @@ export default function DashboardPage(): JSX.Element {
           </div>
         </div>
       )}
-      
+
       {/* Edit Modal */}
       {isEditModalOpen && (
         <div className="modalOverlay" onClick={closeAllModals}>
@@ -612,9 +674,10 @@ export default function DashboardPage(): JSX.Element {
           </div>
         </div>
       )}
-
-      {/* NEW File Preview Modal */}
+      
+      {/* File Preview Modal */}
       {renderPreviewModal()}
     </>
   );
 }
+

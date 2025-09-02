@@ -1,4 +1,3 @@
-// pages/api/auth/[...nextauth].ts
 import NextAuth, { DefaultSession, NextAuthOptions } from "next-auth";
 import GoogleProvider from "next-auth/providers/google";
 import PostgresAdapter from "@auth/pg-adapter";
@@ -9,6 +8,7 @@ declare module "next-auth" {
     user?: {
       id?: string;
       hasCompletedOnboarding?: boolean;
+      hasSecondaryPassword?: boolean;
     } & DefaultSession["user"];
   }
   interface User {
@@ -39,17 +39,17 @@ export const authOptions: NextAuthOptions = {
     async session({ session, token }) {
       if (token.sub && session.user) {
         session.user.id = token.sub;
-        
         try {
           const { rows } = await pool.query(
-            'SELECT "hasCompletedOnboarding" FROM users WHERE id = $1',
+            'SELECT "hasCompletedOnboarding", "passwordHash" FROM users WHERE id = $1',
             [token.sub]
           );
           if (rows[0]) {
             session.user.hasCompletedOnboarding = rows[0].hasCompletedOnboarding;
+            session.user.hasSecondaryPassword = !!rows[0].passwordHash; // Set true if hash exists
           }
         } catch (error) {
-          console.error("Failed to fetch onboarding status:", error);
+          console.error("Failed to fetch user details from session callback:", error);
         }
       }
       return session;
