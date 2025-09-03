@@ -7,31 +7,10 @@ import Head from 'next/head';
 import Image from 'next/image';
 
 // INTERFACES
-interface Vault {
-  id: number;
-  cid: string;
-  name: string;
-  created_at: string;
-  triggerDate: string | null;
-  inactivityTrigger: boolean;
-  recipientEmails: string[] | null;
-}
-interface RecipientVault {
-  id: number;
-  cid: string;
-  name: string;
-  created_at: string;
-  ownerName: string;
-}
-interface UnlockedFile {
-  data: string;
-  name: string;
-  type: string;
-}
-interface UnlockedContent {
-  message?: string;
-  files?: UnlockedFile[];
-}
+interface Vault { id: number; cid: string; name: string; created_at: string; triggerDate: string | null; inactivityTrigger: boolean; recipientEmails: string[] | null; }
+interface RecipientVault { id: number; cid: string; name: string; created_at: string; ownerName: string; }
+interface UnlockedFile { data: string; name: string; type: string; }
+interface UnlockedContent { message?: string; files?: UnlockedFile[]; }
 
 export default function DashboardPage(): JSX.Element {
   const { data: session, status, update } = useSession({ required: true, onUnauthenticated() { router.push('/login') } });
@@ -47,7 +26,6 @@ export default function DashboardPage(): JSX.Element {
   const [filterBy, setFilterBy] = useState('all');
 
   // Second-layer authentication state
-  const [isVerified, setIsVerified] = useState(false);
   const [verifyPassword, setVerifyPassword] = useState('');
   const [verifyError, setVerifyError] = useState('');
   const [isVerifying, setIsVerifying] = useState(false);
@@ -92,25 +70,23 @@ export default function DashboardPage(): JSX.Element {
   };
 
   useEffect(() => {
-    if (status === 'authenticated' && session?.user) {
-      if (!session.user.hasSecondaryPassword) {
-        setIsVerified(true);
-      }
+    // We only fetch data after the user has been verified for this session.
+    if (status === 'authenticated' && session?.user?.isVerified) {
       fetchAllData();
     }
-  }, [status, session]);
+  }, [status, session?.user?.isVerified]); // This effect now depends on the session's verified status
 
   // ACTION HANDLERS
   const handleVerifyPassword = async () => {
     setIsVerifying(true);
     setVerifyError('');
     try {
-        await axios.post('/api/auth/verify-password', { password: verifyPassword });
-        setIsVerified(true);
+      await axios.post('/api/auth/verify-password', { password: verifyPassword });
+      await update({ user: { isVerified: true } });
     } catch (err: any) {
-        setVerifyError(err.response?.data?.error || 'Verification failed.');
+      setVerifyError(err.response?.data?.error || 'Verification failed.');
     } finally {
-        setIsVerifying(false);
+      setIsVerifying(false);
     }
   };
 
@@ -417,13 +393,13 @@ export default function DashboardPage(): JSX.Element {
     );
   }
 
-  if (status === 'authenticated' && !isVerified) {
+  if (status === 'authenticated' && session.user?.hasSecondaryPassword && !session.user?.isVerified) {
     return (
       <>
         <Head><title>Verify Access</title></Head>
         <div className="pageContainer">
             <style dangerouslySetInnerHTML={{ __html: cssStyles }} />
-            <div className="modalOverlay" style={{position: 'absolute', backdropFilter: 'none'}}>
+            <div className="modalOverlay" style={{position: 'relative', backdropFilter: 'none'}}>
                 <div className="modalContent">
                     <h2 style={{ color: 'white', marginTop: 0, textAlign: 'center' }}>Secondary Verification</h2>
                     <p style={{ color: '#94a3b8', textAlign: 'center' }}>
@@ -680,4 +656,3 @@ export default function DashboardPage(): JSX.Element {
     </>
   );
 }
-

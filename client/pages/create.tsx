@@ -67,7 +67,7 @@ export default function CreatePage(): JSX.Element {
     .header { position: relative; display: flex; justify-content: center; align-items: center; margin-bottom: 2rem; padding: 1rem 0; max-width: 1200px; margin-left: auto; margin-right: auto; }
     .header-title-container { display: flex; align-items: center; gap: 1rem; }
     .siteTitle { font-size: 3.25rem; font-weight: 800; margin: 0; background: linear-gradient(90deg, #a78bfa, #7c3aed); -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text; color: transparent; }
-    .backButton { position: absolute; right: 0; top: 50%; transform: translateY(-50%); background: none; border: 1px solid #475569; color: #94a3b8; padding: 0.5rem 1rem; border-radius: 0.5rem; cursor: pointer; transition: background-color 0.2s, color 0.2s; }
+    .backButton { position:absolute; top:5rem; right:-21rem; background:none; border:1px solid #475569; color:#94a3b8; padding:0.5rem 1rem; border-radius:0.5rem; cursor:pointer; transition:background-color 0.2s,color 0.2s; }
     .backButton:hover { background-color: #475569; color: white; }
     .vaultCard { width: 100%; max-width: 600px; margin: 2rem auto 0; background-color: rgba(0, 0, 0, 0.2); backdrop-filter: blur(10px); border-radius: 1rem; box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.25); padding: 2.5rem; border: 1px solid #334155; }
     .title { font-size: 1.875rem; font-weight: 700; color: white; margin: 0; text-align: center; }

@@ -1,4 +1,3 @@
-// pages/set-password.tsx
 import React, { useState, useEffect, JSX } from 'react';
 import { useSession } from 'next-auth/react';
 import { useRouter } from 'next/router';
@@ -7,33 +6,32 @@ import Head from 'next/head';
 import Image from 'next/image';
 
 const PasswordStrengthIndicator = ({ password }: { password: string }) => {
-    const checks = {
-        length: password.length >= 11,
-        uppercase: /[A-Z]/.test(password),
-        digit: /[0-9]/.test(password),
-        symbol: /[^A-Za-z0-9]/.test(password),
-    };
-    const Requirement = ({ label, met }: { label: string, met: boolean }) => (
-        <li style={{ color: met ? '#6ee7b7' : '#94a3b8', transition: 'color 0.3s', display: 'flex', alignItems: 'center' }}>
-            <span style={{ marginRight: '0.5rem', lineHeight: '1' }}>{met ? '✓' : '○'}</span>{label}
-        </li>
-    );
-    return (
-        <div className="strengthIndicator">
-            <ul style={{ listStyleType: 'none', margin: 0, padding: 0, fontSize: '0.875rem', display: 'flex', flexDirection: 'column', gap: '0.25rem' }}>
-                <Requirement met={checks.length} label="At least 11 characters" />
-                <Requirement met={checks.uppercase} label="At least one uppercase letter" />
-                <Requirement met={checks.digit} label="At least one digit" />
-                <Requirement met={checks.symbol} label="At least one symbol" />
-            </ul>
-        </div>
-    );
+  const checks = {
+    length: password.length >= 11,
+    uppercase: /[A-Z]/.test(password),
+    digit: /[0-9]/.test(password),
+    symbol: /[^A-Za-z0-9]/.test(password),
+  };
+  const Requirement = ({ label, met }: { label: string, met: boolean }) => (
+    <li style={{ color: met ? '#6ee7b7' : '#94a3b8', transition: 'color 0.3s', display: 'flex', alignItems: 'center' }}>
+      <span style={{ marginRight: '0.5rem', lineHeight: '1' }}>{met ? '✓' : '○'}</span>{label}
+    </li>
+  );
+  return (
+    <div className="strengthIndicator">
+      <ul style={{ listStyleType: 'none', margin: 0, padding: 0, fontSize: '0.875rem', display: 'flex', flexDirection: 'column', gap: '0.25rem' }}>
+        <Requirement met={checks.length} label="At least 11 characters" />
+        <Requirement met={checks.uppercase} label="At least one uppercase letter" />
+        <Requirement met={checks.digit} label="At least one digit" />
+        <Requirement met={checks.symbol} label="At least one symbol" />
+      </ul>
+    </div>
+  );
 };
 
 export default function SetPasswordPage(): JSX.Element {
   const router = useRouter();
   const { data: session, status, update } = useSession({ required: true, onUnauthenticated() { router.push('/login') } });
-  
   const [password, setPassword] = useState('');
   const [isPasswordValid, setIsPasswordValid] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
@@ -58,9 +56,8 @@ export default function SetPasswordPage(): JSX.Element {
     setSuccess('');
     try {
       await axios.post('/api/auth/set-password', { password });
-      
-      await update();
-
+      // THE FIX: This updates the live session to mark the user as verified.
+      await update({ ...session, user: { ...session?.user, hasSecondaryPassword: true, isVerified: true } });
       setSuccess('Your secondary password has been set! Redirecting...');
       setTimeout(() => router.push('/dashboard'), 2000);
     } catch (err: any) {
@@ -88,11 +85,15 @@ export default function SetPasswordPage(): JSX.Element {
     .successMessage { color: #6ee7b7; }
   `;
 
-  if (status === 'loading') return <div className="pageContainer"><p>Loading...</p></div>;
+  if (status === 'loading') {
+    return <div className="pageContainer"><p>Loading...</p></div>;
+  }
 
   return (
     <>
-      <Head><title>Set Secondary Password</title></Head>
+      <Head>
+        <title>Set Secondary Password</title>
+      </Head>
       <div className="pageContainer">
         <style dangerouslySetInnerHTML={{ __html: cssStyles }} />
         <header className="header">
