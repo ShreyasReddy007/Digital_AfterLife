@@ -33,15 +33,19 @@ export default function RecoveryKeyPage(): JSX.Element {
     }
   }, [status]);
 
-  const generateRecoveryKey = () => {
-    const randomPart = () => Math.random().toString(36).substring(2, 8).toUpperCase();
-    const key = `${randomPart()}-${randomPart()}-${randomPart()}`;
-    setRecoveryKey(key);
-    setConfirmationKey('');
-    setMessage('');
-    setError('');
-    setKeyCopied(false);
-  };
+const generateRecoveryKey = () => {
+  const bytes = new Uint8Array(32);
+  crypto.getRandomValues(bytes);
+  const hex = Array.from(bytes, b => b.toString(16).padStart(2, '0'))
+    .join('')
+    .toUpperCase();
+  const key = hex.match(/.{1,8}/g)!.join('-');
+  setRecoveryKey(key);
+  setConfirmationKey('');
+  setMessage('');
+  setError('');
+  setKeyCopied(false);
+};
 
   const handleCopyToClipboard = () => {
     navigator.clipboard.writeText(recoveryKey);
@@ -73,7 +77,7 @@ export default function RecoveryKeyPage(): JSX.Element {
     setError('');
     try {
       await axios.post('/api/user/delete-recovery-key');
-      setHasKey(false); // Update state to show generation form
+      setHasKey(false);
       setMessage('Your old key has been deleted. You can now generate a new one.');
     } catch (err: any) {
       setError(err.response?.data?.error || 'Failed to delete recovery key.');

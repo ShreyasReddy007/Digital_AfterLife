@@ -7,10 +7,38 @@ import Head from 'next/head';
 import Image from 'next/image';
 
 // INTERFACES
-interface Vault { id: number; cid: string; name: string; created_at: string; triggerDate: string | null; inactivityTrigger: boolean; recipientEmails: string[] | null; }
-interface RecipientVault { id: number; cid: string; name: string; created_at: string; ownerName: string; }
-interface UnlockedFile { data: string; name: string; type: string; }
-interface UnlockedContent { message?: string; files?: UnlockedFile[]; }
+interface Vault
+{ 
+  id: number; 
+  cid: string; 
+  name: string; 
+  created_at: string; 
+  triggerDate: string | null; 
+  inactivityTrigger: boolean; 
+  recipientEmails: string[] | null;
+}
+
+interface RecipientVault 
+{ 
+  id: number; 
+  cid: string; 
+  name: string; 
+  created_at: string; 
+  ownerName: string; 
+}
+
+interface UnlockedFile 
+{ 
+  data: string; 
+  name: string; 
+  type: string; 
+}
+
+interface UnlockedContent 
+{ 
+  message?: string; 
+  files?: UnlockedFile[]; 
+}
 
 export default function DashboardPage(): JSX.Element {
   const { data: session, status, update } = useSession({ required: true, onUnauthenticated() { router.push('/login') } });
@@ -70,11 +98,10 @@ export default function DashboardPage(): JSX.Element {
   };
 
   useEffect(() => {
-    // We only fetch data after the user has been verified for this session.
     if (status === 'authenticated' && session?.user?.isVerified) {
       fetchAllData();
     }
-  }, [status, session?.user?.isVerified]); // This effect now depends on the session's verified status
+  }, [status, session?.user?.isVerified]); // session verified status
 
   // ACTION HANDLERS
   const handleVerifyPassword = async () => {
@@ -326,7 +353,7 @@ export default function DashboardPage(): JSX.Element {
     .searchBox { position: relative; flex-grow: 2; min-width: 250px; }
     .searchBox input { width: 100%; padding: 0.75rem 1rem 0.75rem 2.5rem; background-color: rgba(15, 23, 42, 0.5); border: 1px solid #475569; border-radius: 0.5rem; color: white; box-sizing: border-box; }
     .searchBox svg { position: absolute; left: 0.75rem; top: 50%; transform: translateY(-50%); color: #94a3b8; }
-    .controlGroup { display: flex; align-items: center; gap: 0.75rem; }
+    .controlGroup { display: flex; align-items: center; gap: 0.5rem; }
     .controlLabel { font-size: 0.875rem; color: #94a3b8; }
     .sortSelect { padding: 0.75rem 1rem; background-color: rgba(15, 23, 42, 0.5); border: 1px solid #475569; border-radius: 0.5rem; color: white; }
     .filterButtons { display: flex; gap: 0.5rem; background-color: rgba(15, 23, 42, 0.5); border-radius: 0.5rem; padding: 0.25rem; }
@@ -477,9 +504,9 @@ export default function DashboardPage(): JSX.Element {
               <div className="controlGroup">
                 <label className="controlLabel">Sort by:</label>
                 <select className="sortSelect" value={sortBy} onChange={(e) => setSortBy(e.target.value)}>
-                  <option value="newest">Date Created (Newest)</option>
+                  <option value="newest">Date Created (Recent)</option>
                   <option value="oldest">Date Created (Oldest)</option>
-                  <option value="name">Name (A-Z)</option>
+                  <option value="name">Name (a-z)</option>
                 </select>
               </div>
               <div className="controlGroup">

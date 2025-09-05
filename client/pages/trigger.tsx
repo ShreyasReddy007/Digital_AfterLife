@@ -13,7 +13,7 @@ interface Vault {
   triggerDate: string | null;
 }
 
-// --- Advanced Calendar Component ---
+//  Calendar Component
 const Calendar = ({ selectedDate, onDateSelect, closeCalendar }: { selectedDate: Date, onDateSelect: (date: Date) => void, closeCalendar: () => void }) => {
   const [view, setView] = useState<'days' | 'months' | 'years'>('days');
   const [displayDate, setDisplayDate] = useState(selectedDate);
@@ -166,7 +166,12 @@ export default function TriggerPage(): JSX.Element {
   };
 
   const handleDateSelect = (newDate: Date) => {
-    setDate(newDate.toISOString().split('T')[0]);
+    if (newDate < new Date()) {
+    setError('Cannot set a past date.');
+    return;
+  }
+    const localDate = newDate.toLocaleDateString('en-CA');
+    setDate(localDate);
     setIsCalendarOpen(false);
   };
 
