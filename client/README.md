@@ -1,6 +1,6 @@
 <div align="center">
 <br />
-<img src="https://img.icons8.com/clouds/200/000000/lock.png" alt="logo"/>
+<img src="https://raw.githubusercontent.com/ShreyasReddy007/Digital_AfterLife/main/client/public/Logo.png" alt="logo" width="200"/>
 <br />
 
 # Digital Afterlife Vault
