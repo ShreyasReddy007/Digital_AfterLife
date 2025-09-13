@@ -1,5 +1,4 @@
-import React from 'react';
-import { useState, useEffect, JSX, useMemo } from 'react';
+import React, { useState, useEffect, JSX, useMemo } from 'react';
 import { useSession, signOut } from 'next-auth/react';
 import { useRouter } from 'next/router';
 import axios from 'axios';
@@ -7,64 +6,97 @@ import Head from 'next/head';
 import Image from 'next/image';
 
 // INTERFACES
-interface Vault
-{ 
-  id: number; 
-  cid: string; 
-  name: string; 
-  created_at: string; 
-  triggerDate: string | null; 
-  inactivityTrigger: boolean; 
+interface Vault {
+  id: number;
+  cid: string;
+  name: string;
+  created_at: string;
+  triggerDate: string | null;
+  inactivityTrigger: boolean;
   recipientEmails: string[] | null;
 }
 
-interface RecipientVault 
-{ 
-  id: number; 
-  cid: string; 
-  name: string; 
-  created_at: string; 
-  ownerName: string; 
+interface RecipientVault {
+  id: number;
+  cid: string;
+  name: string;
+  created_at: string;
+  ownerName: string;
 }
 
-interface UnlockedFile 
-{ 
-  data: string; 
-  name: string; 
-  type: string; 
+interface UnlockedFile {
+  data: string;
+  name: string;
+  type: string;
 }
 
-interface UnlockedContent 
-{ 
-  message?: string; 
-  files?: UnlockedFile[]; 
+interface UnlockedContent {
+  message?: string;
+  files?: UnlockedFile[];
 }
+
+// Onboarding Tour
+const OnboardingTour = ({ onClose }: { onClose: () => void }) => {
+  const [step, setStep] = useState(0);
+  const tourSteps = [
+    { title: "Welcome to Digital Afterlife", content: "This brief tour will guide you through the core features of the platform. Your digital legacy starts here.", icon: "👋" },
+    { title: "Create Your Vaults", content: "A vault is a secure, encrypted container for your most important messages and files. You can create as many as you need from the dashboard.", icon: "🔒" },
+    { title: "Set Delivery Triggers", content: "Choose how your vaults are delivered: on a specific future date, or after a period of account inactivity. You have full control.", icon: "⏰" },
+    { title: "The Emergency Recovery Key", content: "Generate a one-time recovery key and give it to a trusted person. They can use it to trigger immediate delivery of all your vaults in an emergency.", icon: "🔑" },
+    { title: "You're All Set!", content: "You're now ready to start securing your digital legacy. If you have any questions, you can always refer to our documentation.", icon: "🚀" }
+  ];
+  const current = tourSteps[step];
+  const isLastStep = step === tourSteps.length - 1;
+  const handleNext = () => {
+    if (!isLastStep) {
+      setStep(step + 1);
+    } else {
+      onClose();
+    }
+  };
+  return (
+    <div className="modalOverlay" style={{ zIndex: 2000 }}>
+      <div className="modalContent" style={{ maxWidth: '450px', textAlign: 'center' }}>
+        <div style={{ fontSize: '3rem', marginBottom: '1rem' }}>{current.icon}</div>
+        <h2 style={{ margin: '0 0 1rem 0', color: 'white', fontSize: '1.5rem' }}>{current.title}</h2>
+        <p style={{ color: '#94a3b8', lineHeight: '1.6' }}>{current.content}</p>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: '2rem' }}>
+          {step > 0 && (<button className="actionButton editButton" onClick={() => setStep(step - 1)}>Previous</button>)}
+          <div style={{ flexGrow: 1, marginLeft: step > 0 ? '1rem' : '0' }}>
+            <button className="actionButton unlockButton" onClick={handleNext}>
+              {isLastStep ? "Finish Tour" : "Next"}
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+};
 
 export default function DashboardPage(): JSX.Element {
-  const { data: session, status, update } = useSession({ required: true, onUnauthenticated() { router.push('/login') } });
   const router = useRouter();
+  const { data: session, status, update } = useSession({ required: true, onUnauthenticated() { router.push('/login'); } });
 
-  // STATE MANAGEMENT
+  // STATES
   const [vaults, setVaults] = useState<Vault[]>([]);
   const [recipientVaults, setRecipientVaults] = useState<RecipientVault[]>([]);
   const [isLoading, setIsLoading] = useState<boolean>(true);
   const [error, setError] = useState<string>('');
+  const [showTour, setShowTour] = useState(false);
+
   const [searchTerm, setSearchTerm] = useState('');
   const [sortBy, setSortBy] = useState('newest');
   const [filterBy, setFilterBy] = useState('all');
 
-  // Second-layer authentication state
   const [verifyPassword, setVerifyPassword] = useState('');
   const [verifyError, setVerifyError] = useState('');
   const [isVerifying, setIsVerifying] = useState(false);
 
-  // MODAL STATES
   const [isModalOpen, setIsModalOpen] = useState<boolean>(false);
   const [isDeleteModalOpen, setIsDeleteModalOpen] = useState<boolean>(false);
   const [isEditModalOpen, setIsEditModalOpen] = useState<boolean>(false);
   const [previewModalFile, setPreviewModalFile] = useState<UnlockedFile | null>(null);
 
-  // ACTION STATES
   const [selectedVault, setSelectedVault] = useState<Vault | RecipientVault | null>(null);
   const [password, setPassword] = useState<string>('');
   const [modalError, setModalError] = useState<string>('');
@@ -74,6 +106,7 @@ export default function DashboardPage(): JSX.Element {
   const [isDeleting, setIsDeleting] = useState<boolean>(false);
   const [isEditing, setIsEditing] = useState(false);
   const [isFetchingContent, setIsFetchingContent] = useState(false);
+
   const [editName, setEditName] = useState('');
   const [editEmails, setEditEmails] = useState('');
   const [editMessage, setEditMessage] = useState('');
@@ -86,22 +119,39 @@ export default function DashboardPage(): JSX.Element {
     try {
       const [myVaultsRes, recipientVaultsRes] = await Promise.all([
         axios.get('/api/vaults'),
-        axios.get('/api/vaults/recipient-vaults')
+        axios.get('/api/vaults/recipient-vaults'),
       ]);
       setVaults(myVaultsRes.data);
       setRecipientVaults(recipientVaultsRes.data);
     } catch (err) {
       setError('Failed to fetch vaults.');
+      console.error(err);
     } finally {
       setIsLoading(false);
     }
   };
 
-  useEffect(() => {
-    if (status === 'authenticated' && session?.user?.isVerified) {
-      fetchAllData();
-    }
-  }, [status, session?.user?.isVerified]); // session verified status
+useEffect(() => {
+  console.log('Session in dashboard useEffect:', session);
+  if (status === 'authenticated' && session?.user?.isVerified) {
+    fetchAllData();
+    const completed = session?.user?.hasCompletedOnboarding ?? true;
+    console.log('Onboarding completed flag:', completed);
+    setShowTour(!completed);
+  }
+}, [status, session]);
+
+const handleCloseTour = async () => {
+  setShowTour(false);
+  try {
+    await axios.post('/api/user/complete-onboarding');
+    await update();
+    window.location.reload();
+  } catch (err) {
+    console.error("Failed to mark onboarding as complete.", err);
+  }
+};
+
 
   // ACTION HANDLERS
   const handleVerifyPassword = async () => {
@@ -213,6 +263,9 @@ export default function DashboardPage(): JSX.Element {
   const openUnlockModal = (vault: Vault | RecipientVault) => {
     setSelectedVault(vault);
     setIsModalOpen(true);
+    setPassword('');
+    setModalError('');
+    setUnlockedContent(null);
     if ('ownerName' in vault) {
       handleRecipientUnlock(vault as RecipientVault);
     }
@@ -243,7 +296,7 @@ export default function DashboardPage(): JSX.Element {
   const openPreviewModal = (file: UnlockedFile) => {
     setPreviewModalFile(file);
   };
-  
+
   const closeAllModals = () => {
     setIsModalOpen(false);
     setIsDeleteModalOpen(false);
@@ -361,7 +414,7 @@ export default function DashboardPage(): JSX.Element {
     .filterButton.active { background-color: #581c87; color: white; }
     .vaultsGrid { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 1.5rem; }
     .vaultCard { background-color: rgba(0,0,0,0.3); border: 1px solid #334155; border-radius: 0.5rem; padding: 1.5rem; display: flex; flex-direction: column; justify-content: space-between; }
-    .vaultName { font-size: 1.125rem; font-weight: 600; margin: 0; word-break: break-all; }
+    .vaultName { font-size: 1.125rem; font-weight: 600; margin: 0; word-break: break-word; }
     .vaultDate { font-size: 0.75rem; color: #94a3b8; margin-top: 1rem; margin-bottom: 0.5rem; }
     .triggerInfo { font-size: 0.875rem; color: #a5b4fc; margin-top: 1rem; padding: 0.5rem; background-color: rgba(71, 85, 105, 0.2); border-radius: 0.25rem; text-align: center; }
     .vaultActions { display: flex; gap: 0.5rem; margin-top: 1.5rem; }
@@ -409,11 +462,12 @@ export default function DashboardPage(): JSX.Element {
     .downloadButton:hover { background-color: #a78bfa; }
   `;
 
-  // --- MAIN RENDER ---
   if (status === 'loading') {
     return (
       <div className="pageContainer">
-        <Head><title>Loading...</title></Head>
+        <Head>
+          <title>Loading...</title>
+        </Head>
         <style dangerouslySetInnerHTML={{ __html: cssStyles }} />
         <p>Loading session...</p>
       </div>
@@ -425,32 +479,32 @@ export default function DashboardPage(): JSX.Element {
       <>
         <Head><title>Verify Access</title></Head>
         <div className="pageContainer">
-            <style dangerouslySetInnerHTML={{ __html: cssStyles }} />
-            <div className="modalOverlay" style={{position: 'relative', backdropFilter: 'none'}}>
-                <div className="modalContent">
-                    <h2 style={{ color: 'white', marginTop: 0, textAlign: 'center' }}>Secondary Verification</h2>
-                    <p style={{ color: '#94a3b8', textAlign: 'center' }}>
-                        For your security, please enter your secondary password to access your dashboard.
-                    </p>
-                    <input 
-                        type="password" 
-                        className="styledInput" 
-                        value={verifyPassword} 
-                        onChange={(e) => setVerifyPassword(e.target.value)}
-                        onKeyPress={(e) => e.key === 'Enter' && handleVerifyPassword()}
-                        placeholder="Enter secondary password" 
-                    />
-                    <button 
-                        className="actionButton unlockButton" 
-                        style={{ width: '100%', marginTop: '1.5rem' }} 
-                        onClick={handleVerifyPassword}
-                        disabled={isVerifying}
-                    >
-                        {isVerifying ? 'Verifying...' : 'Unlock Dashboard'}
-                    </button>
-                    {verifyError && <p className="errorMessage">{verifyError}</p>}
-                </div>
+          <style dangerouslySetInnerHTML={{ __html: cssStyles }} />
+          <div className="modalOverlay" style={{ position: 'relative', backdropFilter: 'none' }}>
+            <div className="modalContent">
+              <h2 style={{ color: 'white', marginTop: 0, textAlign: 'center' }}>Secondary Verification</h2>
+              <p style={{ color: '#94a3b8', textAlign: 'center' }}>
+                For your security, please enter your secondary password to access your dashboard.
+              </p>
+              <input
+                type="password"
+                className="styledInput"
+                value={verifyPassword}
+                onChange={(e) => setVerifyPassword(e.target.value)}
+                onKeyPress={(e) => e.key === 'Enter' && handleVerifyPassword()}
+                placeholder="Enter secondary password"
+              />
+              <button
+                className="actionButton unlockButton"
+                style={{ width: '100%', marginTop: '1.5rem' }}
+                onClick={handleVerifyPassword}
+                disabled={isVerifying}
+              >
+                {isVerifying ? 'Verifying...' : 'Unlock Dashboard'}
+              </button>
+              {verifyError && <p className="errorMessage">{verifyError}</p>}
             </div>
+          </div>
         </div>
       </>
     );
@@ -458,6 +512,7 @@ export default function DashboardPage(): JSX.Element {
 
   return (
     <>
+      {showTour && <OnboardingTour onClose={handleCloseTour} />}
       <Head>
         <title>Digital Afterlife</title>
       </Head>
@@ -471,17 +526,15 @@ export default function DashboardPage(): JSX.Element {
             </div>
             <button className="signOutButton" onClick={() => signOut()}>Sign Out</button>
           </header>
-
           <nav className="navActions">
             <div className="navButton" onClick={() => router.push('/create')}>Create New Vault</div>
             <div className="navButton" onClick={() => router.push('/trigger')}>Set Trigger Date</div>
             <div className="navButton" onClick={() => router.push('/recovery-key')}>Set Recovery Key</div>
             {!session?.user?.hasSecondaryPassword && (
-                 <div className="navButton" onClick={() => router.push('/set-password')}>Set Secondary Password</div>
+              <div className="navButton" onClick={() => router.push('/set-password')}>Set Secondary Password</div>
             )}
             <div className="navButton" onClick={() => router.push('/deliver')}>Deliver by Key</div>
           </nav>
-
           <section className="infoSection">
             <h2 className="infoTitle">Whispers Beyond Time</h2>
             <ul className="infoPoints">
@@ -491,7 +544,6 @@ export default function DashboardPage(): JSX.Element {
               <p className="infoText">Ensure your legacy reaches loved ones exactly when you intend.</p>
             </ul>
           </section>
-
           <main>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.5rem', flexWrap: 'wrap', gap: '1rem' }}>
               <h2 className="title" style={{ fontSize: '1.75rem', margin: 0 }}>My Vaults</h2>
@@ -518,8 +570,7 @@ export default function DashboardPage(): JSX.Element {
                 </div>
               </div>
             </div>
-
-            {isLoading ? <p style={{textAlign: 'center'}}>Loading vaults...</p> : error ? <p className="errorMessage">{error}</p> : filteredAndSortedVaults.length > 0 ? (
+            {isLoading ? <p style={{ textAlign: 'center' }}>Loading vaults...</p> : error ? <p className="errorMessage">{error}</p> : filteredAndSortedVaults.length > 0 ? (
               <div className="vaultsGrid">{filteredAndSortedVaults.map(vault => (
                 <div key={vault.id} className="vaultCard">
                   <div>
@@ -551,10 +602,9 @@ export default function DashboardPage(): JSX.Element {
                   </div>
                 </div>))}
               </div>
-            ) : <p style={{textAlign: 'center', color: '#94a3b8'}}>No vaults match your criteria. Create a new vault to get started!</p>}
-
+            ) : <p style={{ textAlign: 'center', color: '#94a3b8' }}>No vaults match your criteria. Create a new vault to get started!</p>}
             {recipientVaults.length > 0 && (
-              <div style={{marginTop: '4rem'}}>
+              <div style={{ marginTop: '4rem' }}>
                 <h2 className="title" style={{ fontSize: '1.75rem', marginBottom: '1.5rem' }}>Shared With Me</h2>
                 <div className="vaultsGrid">{recipientVaults.map(vault => (
                   <div key={vault.id} className="vaultCard">
@@ -564,7 +614,7 @@ export default function DashboardPage(): JSX.Element {
                       <p className="vaultDate">Delivered: {new Date(vault.created_at).toLocaleString()}</p>
                     </div>
                     <div className="vaultActions">
-                      <button className="actionButton unlockButton" style={{width: '100%'}} onClick={() => openUnlockModal(vault)}>View Content</button>
+                      <button className="actionButton unlockButton" style={{ width: '100%' }} onClick={() => openUnlockModal(vault)}>View Content</button>
                     </div>
                   </div>))}
                 </div>
@@ -596,7 +646,7 @@ export default function DashboardPage(): JSX.Element {
             ) : isUnlocking ? (
               <p style={{ color: "white", textAlign: 'center' }}>Unlocking...</p>
             ) : selectedVault && 'ownerName' in selectedVault ? (
-              <p style={{textAlign: 'center'}}>Verifying access and retrieving content...</p>
+              <p style={{ textAlign: 'center' }}>Verifying access and retrieving content...</p>
             ) : (
               <>
                 <input type="password" className="styledInput" placeholder="Enter vault password" value={password} onChange={(e) => setPassword(e.target.value)} disabled={isUnlocking} />
@@ -659,15 +709,15 @@ export default function DashboardPage(): JSX.Element {
                   </div>
                   <div>
                     <label style={{ fontSize: '0.875rem', color: '#94a3b8' }}>Replace Attachment (Optional)</label>
-                    <label htmlFor="edit-file-upload" className="fileInputLabel" style={{marginTop: '0.5rem'}}>
+                    <label htmlFor="edit-file-upload" className="fileInputLabel" style={{ marginTop: '0.5rem' }}>
                       <span>{editFile ? editFile.name : 'Click to select a new file'}</span>
                     </label>
                     <input id="edit-file-upload" type="file" onChange={(e) => setEditFile(e.target.files ? e.target.files[0] : null)} style={{ display: 'none' }} />
                   </div>
                 </div>
                 <div style={{ display: 'flex', gap: '1rem', marginTop: '1.5rem' }}>
-                  <button className="actionButton" style={{ backgroundColor: '#475569' }} onClick={closeAllModals}>Cancel</button>
-                  <button className="actionButton unlockButton" onClick={handleEdit} disabled={isEditing}>
+                  <button className="actionButton" style={{ backgroundColor: '#475569', flexGrow: 1 }} onClick={closeAllModals}>Cancel</button>
+                  <button className="actionButton unlockButton" style={{ flexGrow: 1 }} onClick={handleEdit} disabled={isEditing}>
                     {isEditing ? 'Saving...' : 'Save Changes'}
                   </button>
                 </div>
@@ -677,7 +727,7 @@ export default function DashboardPage(): JSX.Element {
           </div>
         </div>
       )}
-      
+
       {/* File Preview Modal */}
       {renderPreviewModal()}
     </>

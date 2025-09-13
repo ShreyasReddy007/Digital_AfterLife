@@ -3,7 +3,7 @@ import GoogleProvider from "next-auth/providers/google";
 import PostgresAdapter from "@auth/pg-adapter";
 import { Pool } from "pg";
 
-//  Interfaces
+// Interfaces
 declare module "next-auth" {
   interface Session {
     user?: {
@@ -20,7 +20,6 @@ declare module "next-auth" {
   }
 }
 
-// Pool Connection
 const pool = new Pool({
   connectionString: process.env.DATABASE_URL,
 });
@@ -42,31 +41,31 @@ export const authOptions: NextAuthOptions = {
     strategy: "jwt",
   },
 
-  //  Callbacks
+  // Callbacks
   callbacks: {
     async jwt({ token, user, trigger, session }) {
-      if (user) {
-        try {
-          const { rows } = await pool.query(
-            'SELECT "hasCompletedOnboarding", "passwordHash" FROM users WHERE id = $1',
-            [token.sub]
-          );
-          if (rows[0]) {
-            token.hasCompletedOnboarding = rows[0].hasCompletedOnboarding;
-            token.hasSecondaryPassword = Boolean(rows[0].passwordHash);
-          }
-        } catch (error) {
-          // silent failure case
-        }
-        token.isVerified = false;
-      }
+  try {
+    // Fetch fresh user onboarding flag
+    const { rows } = await pool.query(
+      'SELECT "hasCompletedOnboarding", "passwordHash" FROM users WHERE id = $1',
+      [token.sub]
+    );
+    if (rows[0]) {
+      token.hasCompletedOnboarding = rows[0].hasCompletedOnboarding;
+      token.hasSecondaryPassword = Boolean(rows[0].passwordHash);
+    }
+  } catch (error) {
+    console.error('Error fetching user fields in JWT callback:', error);
+  }
 
-      if (trigger === "update" && session?.user?.isVerified) {
-        token.isVerified = true;
-      }
+  token.isVerified = token.isVerified ?? false;
 
-      return token;
-    },
+  if (trigger === 'update' && session?.user) {
+    token.isVerified = session.user.isVerified;
+  }
+
+  return token;
+},
 
     async session({ session, token }) {
       if (session.user) {
