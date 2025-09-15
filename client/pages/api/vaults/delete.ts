@@ -27,7 +27,7 @@ export default async function handler(
   }
 
   try {
-    // Step 1: Unpin the file from Pinata to free up storage
+    // Unpin the file from Pinata to free up storage
     const pinataUnpinUrl = `https://api.pinata.cloud/pinning/unpin/${cid}`;
     await axios.delete(pinataUnpinUrl, {
       headers: {
@@ -36,7 +36,7 @@ export default async function handler(
       },
     });
 
-    // Step 2: Delete the vault record from the database
+    // Delete the vault record
     await pool.query(
       'DELETE FROM vaults WHERE cid = $1 AND "userId" = $2',
       [cid, session.user.id]
@@ -48,7 +48,7 @@ export default async function handler(
     // Handle cases where the file might already be unpinned or other errors
     if (error.response && error.response.status === 404) {
         console.warn(`CID ${cid} not found on Pinata, but proceeding to delete from DB.`);
-        // If not found on Pinata, it might be an old record. Still try to delete from DB.
+        // If not found on Pinata, Still try to delete from DB.
          await pool.query(
             'DELETE FROM vaults WHERE cid = $1 AND "userId" = $2',
             [cid, session.user.id]

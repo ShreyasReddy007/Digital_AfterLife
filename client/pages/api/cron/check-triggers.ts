@@ -11,14 +11,13 @@ export default async function handler(
   req: NextApiRequest,
   res: NextApiResponse
 ) {
-  // 1. Secure the endpoint
   const secret = req.headers.authorization?.split(' ')[1];
   if (secret !== process.env.CRON_SECRET) {
     return res.status(401).json({ error: 'Unauthorized' });
   }
 
   try {
-    // 2. Find all vaults that are due and not yet delivered
+    // Find all vaults that are due
     const query = `
       SELECT 
         v.id, v.cid, v.name, v."recipientEmails" as recipients
@@ -43,7 +42,7 @@ export default async function handler(
     let successCount = 0;
     let errorCount = 0;
 
-    // 3. Process each due vault
+    // Process each due vault
     for (const vault of dueVaults) {
       try {
         if (!vault.recipients || vault.recipients.length === 0) {
@@ -51,14 +50,14 @@ export default async function handler(
           continue; 
         }
         
-        // 4. Send the delivery email using Nodemailer
+        // deliver email using Nodemailer
         await sendVaultDeliveryEmail({
           recipients: vault.recipients,
           vaultName: vault.name,
           cid: vault.cid,
         });
 
-        // 5. Mark the vault as delivered to prevent re-sending
+        // Mark the vault as delivered to avoid re-sending
         await pool.query(
           'UPDATE vaults SET "deliveryStatus" = \'delivered\' WHERE id = $1',
           [vault.id]

@@ -7,10 +7,8 @@ export default function IndexPage() {
   const router = useRouter();
 
   useEffect(() => {
-    // Wait until the session status is determined
     if (status !== 'loading') {
       if (status === 'authenticated') {
-        // If logged in, go to the create vault page
         router.replace('/dashboard');
       } else {
         // If not logged in, go to the login page
@@ -30,7 +28,7 @@ export default function IndexPage() {
       color: 'white',
       fontFamily: 'sans-serif'
     }}>
-      Loading...
+    Hold Tight...
     </div>
   );
 }

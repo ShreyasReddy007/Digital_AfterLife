@@ -480,7 +480,7 @@ const handleCloseTour = async () => {
         <Head><title>Verify Access</title></Head>
         <div className="pageContainer">
           <style dangerouslySetInnerHTML={{ __html: cssStyles }} />
-          <div className="modalOverlay" style={{ position: 'relative', backdropFilter: 'none' }}>
+          <div className="modalOverlay" style={{ position: 'absolute', backdropFilter: 'none' , }}>
             <div className="modalContent">
               <h2 style={{ color: 'white', marginTop: 0, textAlign: 'center' }}>Secondary Verification</h2>
               <p style={{ color: '#94a3b8', textAlign: 'center' }}>

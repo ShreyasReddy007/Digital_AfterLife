@@ -22,8 +22,7 @@ export default async function handler(
     try {
       const userEmail = session.user.email;
 
-      // **MODIFIED**: This query now ONLY selects vaults where the user is a recipient
-      // AND the vault's deliveryStatus has been marked as 'delivered' by the cron job.
+      // select vaults where the user is a recipient AND the vault's deliveryStatus has been marked as 'delivered' by the cron job.
       const query = `
         SELECT 
           v.id, v.cid, v.name, v.created_at, u.name as "ownerName"

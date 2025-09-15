@@ -19,7 +19,7 @@ export default async function handler(
 
   try {
     const pinataData = {
-      pinataContent: req.body.content, // The content to be pinned (e.g., { message: "Hello" })
+      pinataContent: req.body.content,
       pinataMetadata: {
         name: `VaultContent_${new Date().toISOString()}`,
       },
@@ -37,7 +37,7 @@ export default async function handler(
       }
     );
 
-    // Return the real CID (IpfsHash) from Pinata
+    // Return the real CID
     res.status(200).json({ cid: pinataResponse.data.IpfsHash });
 
   } catch (error) {

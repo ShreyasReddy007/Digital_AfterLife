@@ -22,7 +22,7 @@ export default async function handler(
   }
 
   try {
-    // 1. Find the user by their email
+    // Find the user by their email
     const userResult = await pool.query('SELECT id, "recoveryKeyHash" FROM users WHERE email = $1', [email]);
     const user = userResult.rows[0];
 
@@ -30,13 +30,13 @@ export default async function handler(
       return res.status(404).json({ error: 'Invalid email or recovery key not set for this user.' });
     }
 
-    // 2. Verify the recovery key by comparing hashes
+    // Verify the recovery key by comparing hashes
     const isKeyValid = await bcrypt.compare(recoveryKey, user.recoveryKeyHash);
     if (!isKeyValid) {
       return res.status(403).json({ error: 'Invalid recovery key.' });
     }
 
-    // 3. If key is valid, find all pending vaults for this user
+    // find all pending vaults for this user
     const vaultsResult = await pool.query(
       'SELECT id, cid, name, "recipientEmails" FROM vaults WHERE "userId" = $1 AND "deliveryStatus" = \'pending\'',
       [user.id]
@@ -47,7 +47,7 @@ export default async function handler(
       return res.status(200).json({ message: 'Recovery key is valid, but there are no pending vaults to deliver.' });
     }
 
-    // 4. Process each vault (send email and update status)
+    // Process each vault
     let successCount = 0;
     for (const vault of dueVaults) {
       if (vault.recipientEmails && vault.recipientEmails.length > 0) {
